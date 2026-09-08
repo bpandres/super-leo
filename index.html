@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Super Leo</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="description" content="A Mario-style platformer starring Leo — run, jump, and kick soccer balls across three worlds.">
 <link rel="manifest" href="manifest.json">
 <meta name="mobile-web-app-capable" content="yes">
@@ -289,6 +289,18 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
 <script>
 (function(){
 "use strict";
+
+// Belt-and-suspenders zoom blocking: the viewport meta tag stops most
+// pinch/double-tap zooming, but Safari can still trigger its own gesture
+// zoom and double-tap zoom in some versions, so block those explicitly too.
+// (Double-tap-zoom is already disabled by the viewport meta tag above on
+// modern browsers; we deliberately don't also patch touchend for it, since
+// that trick is prone to eating the legitimate click/tap right after a
+// fast button press.)
+document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+document.addEventListener('touchmove', function(e){
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive:false });
 
 var canvas = document.getElementById('game');
 var ctx = canvas.getContext('2d');
