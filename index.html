@@ -51,7 +51,7 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#123056;font
   touch-action:none;
   user-select:none;
 }
-canvas{display:block;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);image-rendering:optimizeQuality;}
+canvas{display:block;width:100%;height:100%;image-rendering:optimizeQuality;}
 
 #hud{
   position:absolute;top:0;left:0;right:0;
@@ -413,25 +413,28 @@ var LEVELS = [
 
 // ---------- Fit canvas to the actual device shape (no stretch, no letterbox bars) ----------
 // LEVELS above was authored assuming a 960x540 canvas with the ground at y=440.
-// We size the real canvas to match the device (so pixels are 1:1, never
-// stretched), then shift every level's y-coordinates by the same amount the
-// ground line moved, so relative spacing (jump heights, platform gaps) stays
-// exactly as designed. On a normal phone/tablet landscape shape this fills
-// edge-to-edge. On an unusually tall/square window (e.g. a resized desktop
-// browser) we cap how much extra headroom gets revealed above the ground —
-// otherwise the fixed-size sprites end up looking tiny and "far away" in a
-// mostly-empty sky. Past that cap we center the canvas and let the small
-// margin show the frame's own matching sky-gradient background instead of
-// distorting or ballooning the world.
+// The canvas's logical (backing-buffer) resolution always matches the real
+// frame's aspect ratio exactly, so scaling it up to fill the frame via CSS
+// is a uniform zoom, never a distortion. We shift every level's
+// y-coordinates by the same amount the ground line moved, so relative
+// spacing (jump heights, platform gaps) stays exactly as designed.
+// On a normal phone/tablet landscape shape the logical height is close to
+// the real device height, so this fills edge-to-edge at ~1:1 sharpness.
+// On an unusually tall or just large window (e.g. a resized desktop
+// browser) we clamp the logical height to a sane design range — otherwise
+// a much taller canvas would reveal far more sky than the level is built
+// for, making the fixed-size sprites look tiny and "far away". Clamping
+// keeps the same relative layout and just zooms it to fit instead.
 var GROUND_Y_REF = GROUND_Y;
-var MIN_ASPECT = 1.5; // narrowest width:height we'll reveal full height for
+var LOGICAL_H_MIN = 380, LOGICAL_H_MAX = 620;
 function computeCanvasBox(){
   var frame = document.getElementById('frame');
   var r = frame.getBoundingClientRect();
-  var rW = Math.max(480, Math.round(r.width) || 960);
-  var rH = Math.max(260, Math.round(r.height) || 540);
-  var cappedH = rW / MIN_ASPECT < rH ? Math.round(rW / MIN_ASPECT) : rH;
-  return { w: rW, h: cappedH };
+  var rW = Math.max(320, r.width || 960);
+  var rH = Math.max(200, r.height || 540);
+  var logicalH = Math.max(LOGICAL_H_MIN, Math.min(LOGICAL_H_MAX, rH));
+  var logicalW = Math.round(logicalH * (rW / rH));
+  return { w: logicalW, h: Math.round(logicalH) };
 }
 (function fitCanvasToDevice(){
   var box = computeCanvasBox();
