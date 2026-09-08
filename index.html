@@ -426,13 +426,28 @@ var GROUND_Y_REF = GROUND_Y;
 })();
 GROUND_Y = H - 100;
 var groundOffset = GROUND_Y - GROUND_Y_REF;
-window.addEventListener('resize', function(){
+function resyncCanvasSize(){
   var frame = document.getElementById('frame');
   var r = frame.getBoundingClientRect();
   var newW = Math.max(480, Math.round(r.width) || W);
   var newH = Math.max(260, Math.round(r.height) || H);
-  if (newW !== W || newH !== H){ W = newW; H = newH; canvas.width = W; canvas.height = H; }
-});
+  if (newW === W && newH === H) return;
+  W = newW; H = newH;
+  canvas.width = W; canvas.height = H;
+  GROUND_Y = H - 100;
+  groundOffset = GROUND_Y - GROUND_Y_REF;
+  // Re-derive the currently loaded level's geometry against the new ground
+  // line so platforms/enemies/collectibles stay correctly spaced instead of
+  // drifting out of sync with a canvas that was measured before the host
+  // page finished settling on its final size (some browsers/containers
+  // resize the frame a moment after our first measurement).
+  if (typeof currentLevelIndex === 'number') loadLevel(currentLevelIndex);
+}
+window.addEventListener('resize', resyncCanvasSize);
+// A couple of follow-up checks shortly after load catch hosts that finish
+// laying out the page a beat after scripts run.
+setTimeout(resyncCanvasSize, 250);
+setTimeout(resyncCanvasSize, 1000);
 
 // ---------- Progress persistence ----------
 function loadProgress(){
