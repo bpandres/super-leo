@@ -1446,20 +1446,6 @@ function drawLeo(){
   var armGrad = ctx.createLinearGradient(0,-10,0,4);
   armGrad.addColorStop(0,'#FFD9AF'); armGrad.addColorStop(1,'#E8A971');
 
-  var capeGrad = ctx.createLinearGradient(-20,-14,-4,18);
-  capeGrad.addColorStop(0,'#EA5A67'); capeGrad.addColorStop(1,'#A72836');
-  ctx.fillStyle = capeGrad;
-  ctx.beginPath();
-  ctx.moveTo(-6,-14);
-  var flutter = Math.sin(elapsed*0.012 + player.runPhase*3) * (moving?8:5) - player.vx*2;
-  ctx.quadraticCurveTo(-20+flutter, 0, -8+flutter*0.6, 18);
-  ctx.lineTo(-4,10);
-  ctx.lineTo(-4,-12);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle='rgba(90,20,25,0.5)'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(-6,-10); ctx.quadraticCurveTo(-16+flutter*0.7,2,-7+flutter*0.5,14); ctx.stroke();
-
   drawLimb(-3, 9, backLegAngle, 12, 6, legGrad, '#fff');
   drawLimb(-6, -9, backArmAngle, 11, 4.5, armGrad, null);
 
@@ -1483,9 +1469,9 @@ function drawLeo(){
   }
   drawLimb(6, -9, frontArmAngle, 11, 4.5, armGrad, null);
 
-  var capeCollarGrad = ctx.createLinearGradient(-7,-19,7,-6);
-  capeCollarGrad.addColorStop(0,'#EA5A67'); capeCollarGrad.addColorStop(1,'#C0392B');
-  ctx.fillStyle = capeCollarGrad;
+  var collarGrad = ctx.createLinearGradient(-7,-19,7,-6);
+  collarGrad.addColorStop(0,'#FFFFFF'); collarGrad.addColorStop(1,'#C7CCD1');
+  ctx.fillStyle = collarGrad;
   ctx.beginPath(); ctx.arc(0,-13,7,0,Math.PI,true); ctx.fill();
 
   var headBob = moving ? Math.sin(runCycle*2)*0.6 : 0;
@@ -1530,16 +1516,6 @@ function drawLeo(){
   ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,0.15)';
   ctx.beginPath(); ctx.moveTo(0,-35); ctx.quadraticCurveTo(6,-35,8,-28); ctx.quadraticCurveTo(3,-31,0,-35); ctx.closePath(); ctx.fill();
-
-  var maskGrad = ctx.createLinearGradient(-9,-28,9,-22);
-  maskGrad.addColorStop(0,'#EA5A67'); maskGrad.addColorStop(1,'#B8303D');
-  ctx.fillStyle = maskGrad;
-  ctx.beginPath();
-  ctx.moveTo(-8,-25); ctx.quadraticCurveTo(0,-28,8,-25);
-  ctx.quadraticCurveTo(8,-22,4,-21.5);
-  ctx.quadraticCurveTo(0,-23,-4,-21.5);
-  ctx.quadraticCurveTo(-8,-22,-8,-25);
-  ctx.closePath(); ctx.fill();
 
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.ellipse(3,-24,2.1,1.6,0,0,Math.PI*2); ctx.fill();
