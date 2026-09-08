@@ -1695,7 +1695,25 @@ requestAnimationFrame(loop);
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function(){
-    navigator.serviceWorker.register('service-worker.js').catch(function(){});
+    navigator.serviceWorker.register('service-worker.js').then(function(reg){
+      // Ask right away whether a newer service worker is available (iOS
+      // standalone PWAs are notoriously slow to check on their own), and
+      // recheck whenever the app is reopened/foregrounded.
+      reg.update().catch(function(){});
+      document.addEventListener('visibilitychange', function(){
+        if (document.visibilityState === 'visible') reg.update().catch(function(){});
+      });
+    }).catch(function(){});
+
+    // Self-healing: once a new service worker actually takes control of
+    // this page, reload once so the fresh version is what's on screen
+    // instead of leaving the player stuck looking at the old one.
+    var reloadedForUpdate = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function(){
+      if (reloadedForUpdate) return;
+      reloadedForUpdate = true;
+      window.location.reload();
+    });
   });
 }
 </script>

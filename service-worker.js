@@ -1,4 +1,4 @@
-const CACHE_NAME = 'super-leo-v7';
+const CACHE_NAME = 'super-leo-v8';
 const APP_SHELL = [
   './',
   './index.html',
@@ -36,7 +36,7 @@ self.addEventListener('fetch', function(event){
     // updates show up immediately instead of waiting on a stale cache.
     // Only fall back to the cache when there's no connection at all.
     event.respondWith(
-      fetch(event.request).then(function(response){
+      fetch(event.request, { cache: 'reload' }).then(function(response){
         if (response && response.ok){
           var copy = response.clone();
           caches.open(CACHE_NAME).then(function(cache){ cache.put(event.request, copy); });
