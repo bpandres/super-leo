@@ -442,14 +442,20 @@ var LOGICAL_H_MIN = 380, LOGICAL_H_MAX = 620;
 function computeCanvasBox(){
   var frame = document.getElementById('frame');
   var r = frame.getBoundingClientRect();
-  var rW = Math.max(320, r.width || 960);
-  var rH = Math.max(200, r.height || 540);
+  // While the device is in portrait, #stage is display:none (the rotate
+  // prompt covers it instead), so the frame measures 0x0. Treat that as
+  // "nothing to measure right now" rather than falling back to a default
+  // size — resyncing against a bogus 0x0-derived box is what caused
+  // sizing to drift after rotating away and back.
+  if (!r.width || !r.height) return null;
+  var rW = Math.max(320, r.width);
+  var rH = Math.max(200, r.height);
   var logicalH = Math.max(LOGICAL_H_MIN, Math.min(LOGICAL_H_MAX, rH));
   var logicalW = Math.round(logicalH * (rW / rH));
   return { w: logicalW, h: Math.round(logicalH) };
 }
 (function fitCanvasToDevice(){
-  var box = computeCanvasBox();
+  var box = computeCanvasBox() || { w: 960, h: 540 };
   W = box.w; H = box.h;
   canvas.width = W; canvas.height = H;
 })();
@@ -457,6 +463,7 @@ GROUND_Y = H - 100;
 var groundOffset = GROUND_Y - GROUND_Y_REF;
 function resyncCanvasSize(){
   var box = computeCanvasBox();
+  if (!box) return; // hidden right now (portrait) — leave last-known-good sizing alone
   if (box.w === W && box.h === H) return;
   W = box.w; H = box.h;
   canvas.width = W; canvas.height = H;
@@ -465,15 +472,26 @@ function resyncCanvasSize(){
   // Re-derive the currently loaded level's geometry against the new ground
   // line so platforms/enemies/collectibles stay correctly spaced instead of
   // drifting out of sync with a canvas that was measured before the host
-  // page finished settling on its final size (some browsers/containers
-  // resize the frame a moment after our first measurement).
+  // page finished settling on its final size (some browsers/containers,
+  // and iOS after a rotation, can take a beat to reach their final layout).
   if (typeof currentLevelIndex === 'number') loadLevel(currentLevelIndex);
 }
-window.addEventListener('resize', resyncCanvasSize);
-// A couple of follow-up checks shortly after load catch hosts that finish
-// laying out the page a beat after scripts run.
-setTimeout(resyncCanvasSize, 250);
-setTimeout(resyncCanvasSize, 1000);
+// Retry a few times after every resize/rotation/foreground event, not just
+// once at initial load — iOS in particular can fire the resize/
+// orientationchange event before it has actually finished laying out the
+// rotated frame, so a single immediate measurement isn't reliable.
+function scheduleResync(){
+  resyncCanvasSize();
+  setTimeout(resyncCanvasSize, 150);
+  setTimeout(resyncCanvasSize, 500);
+  setTimeout(resyncCanvasSize, 1200);
+}
+window.addEventListener('resize', scheduleResync);
+window.addEventListener('orientationchange', scheduleResync);
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible') scheduleResync();
+});
+scheduleResync();
 
 // ---------- Progress persistence ----------
 function loadProgress(){
