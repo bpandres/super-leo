@@ -666,9 +666,23 @@ function setupDirectionalDrag(){
     if (x < z.mid){ keys.left = true; keys.right = false; }
     else { keys.right = true; keys.left = false; }
   }
-  function onDown(ev){ ev.preventDefault(); active = true; updateFromPoint(ev.clientX, ev.clientY); }
-  function onMove(ev){ if (!active) return; ev.preventDefault(); updateFromPoint(ev.clientX, ev.clientY); }
-  function onUp(){ active = false; keys.left = false; keys.right = false; }
+  var activePointerId = null;
+  function onDown(ev){
+    ev.preventDefault();
+    active = true;
+    activePointerId = ev.pointerId;
+    updateFromPoint(ev.clientX, ev.clientY);
+  }
+  function onMove(ev){
+    if (!active || ev.pointerId !== activePointerId) return;
+    ev.preventDefault();
+    updateFromPoint(ev.clientX, ev.clientY);
+  }
+  function onUp(ev){
+    if (!active || ev.pointerId !== activePointerId) return;
+    active = false; activePointerId = null;
+    keys.left = false; keys.right = false;
+  }
   leftEl.addEventListener('pointerdown', onDown);
   rightEl.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onMove);
