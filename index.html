@@ -1425,8 +1425,10 @@ function drawLeo(){
   var y = player.y + player.h/2 - bob;
   var blinking = !celebrating && player.hurtTimer > 0 && Math.floor(elapsed/100)%2===0;
 
-  ctx.fillStyle = 'rgba(15,30,20,0.22)';
-  ctx.beginPath(); ctx.ellipse(player.x-camX+player.w/2, player.y+player.h+2, 13, 3.5, 0, 0, Math.PI*2); ctx.fill();
+  if (player.grounded || celebrating){
+    ctx.fillStyle = 'rgba(15,30,20,0.22)';
+    ctx.beginPath(); ctx.ellipse(player.x-camX+player.w/2, player.y+player.h+2, 13, 3.5, 0, 0, Math.PI*2); ctx.fill();
+  }
 
   if (blinking) ctx.globalAlpha = 0.4;
   ctx.save();
@@ -1505,17 +1507,17 @@ function drawLeo(){
   hairGrad.addColorStop(0,'#8A5A30'); hairGrad.addColorStop(1,'#5C3A1E');
   ctx.fillStyle = hairGrad;
   ctx.beginPath();
-  ctx.moveTo(-9,-19);
-  ctx.quadraticCurveTo(-11,-34, -1,-36);
-  ctx.quadraticCurveTo(9,-37, 10,-27);
-  ctx.quadraticCurveTo(10.5,-22, 7,-20);
-  ctx.quadraticCurveTo(7,-27, 2,-28);
-  ctx.quadraticCurveTo(-2,-29, -4,-24);
-  ctx.quadraticCurveTo(-5,-20.5, -9,-19);
+  ctx.moveTo(-8.5,-21);
+  ctx.quadraticCurveTo(-10.5,-34, -1,-36);
+  ctx.quadraticCurveTo(9,-37.5, 9.5,-28);
+  ctx.quadraticCurveTo(9.5,-25.5, 6,-26);
+  ctx.quadraticCurveTo(6,-29, 1,-29);
+  ctx.quadraticCurveTo(-3.5,-29, -6,-25.5);
+  ctx.quadraticCurveTo(-7.5,-23, -8.5,-21);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  ctx.beginPath(); ctx.moveTo(0,-35); ctx.quadraticCurveTo(6,-35,8,-28); ctx.quadraticCurveTo(3,-31,0,-35); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(0,-35); ctx.quadraticCurveTo(6,-35,8,-29); ctx.quadraticCurveTo(3,-32,0,-35); ctx.closePath(); ctx.fill();
 
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.ellipse(3,-24,2.1,1.6,0,0,Math.PI*2); ctx.fill();
