@@ -51,7 +51,7 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#123056;font
   touch-action:none;
   user-select:none;
 }
-canvas{display:block;width:100%;height:100%;image-rendering:optimizeQuality;}
+canvas{display:block;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);image-rendering:optimizeQuality;}
 
 #hud{
   position:absolute;top:0;left:0;right:0;
@@ -413,26 +413,37 @@ var LEVELS = [
 
 // ---------- Fit canvas to the actual device shape (no stretch, no letterbox bars) ----------
 // LEVELS above was authored assuming a 960x540 canvas with the ground at y=440.
-// We now resize the real canvas to match the device, then shift every level's
-// y-coordinates by the same amount the ground line moved, so relative spacing
-// (jump heights, platform gaps) stays exactly as designed.
+// We size the real canvas to match the device (so pixels are 1:1, never
+// stretched), then shift every level's y-coordinates by the same amount the
+// ground line moved, so relative spacing (jump heights, platform gaps) stays
+// exactly as designed. On a normal phone/tablet landscape shape this fills
+// edge-to-edge. On an unusually tall/square window (e.g. a resized desktop
+// browser) we cap how much extra headroom gets revealed above the ground —
+// otherwise the fixed-size sprites end up looking tiny and "far away" in a
+// mostly-empty sky. Past that cap we center the canvas and let the small
+// margin show the frame's own matching sky-gradient background instead of
+// distorting or ballooning the world.
 var GROUND_Y_REF = GROUND_Y;
-(function fitCanvasToDevice(){
+var MIN_ASPECT = 1.5; // narrowest width:height we'll reveal full height for
+function computeCanvasBox(){
   var frame = document.getElementById('frame');
   var r = frame.getBoundingClientRect();
-  W = Math.max(480, Math.round(r.width) || 960);
-  H = Math.max(260, Math.round(r.height) || 540);
+  var rW = Math.max(480, Math.round(r.width) || 960);
+  var rH = Math.max(260, Math.round(r.height) || 540);
+  var cappedH = rW / MIN_ASPECT < rH ? Math.round(rW / MIN_ASPECT) : rH;
+  return { w: rW, h: cappedH };
+}
+(function fitCanvasToDevice(){
+  var box = computeCanvasBox();
+  W = box.w; H = box.h;
   canvas.width = W; canvas.height = H;
 })();
 GROUND_Y = H - 100;
 var groundOffset = GROUND_Y - GROUND_Y_REF;
 function resyncCanvasSize(){
-  var frame = document.getElementById('frame');
-  var r = frame.getBoundingClientRect();
-  var newW = Math.max(480, Math.round(r.width) || W);
-  var newH = Math.max(260, Math.round(r.height) || H);
-  if (newW === W && newH === H) return;
-  W = newW; H = newH;
+  var box = computeCanvasBox();
+  if (box.w === W && box.h === H) return;
+  W = box.w; H = box.h;
   canvas.width = W; canvas.height = H;
   GROUND_Y = H - 100;
   groundOffset = GROUND_Y - GROUND_Y_REF;
