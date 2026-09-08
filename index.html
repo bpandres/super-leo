@@ -586,6 +586,7 @@ function loadLevel(idx){
   player.vx=0; player.vy=0; player.facing=1;
   player.hurtTimer=0; player.kickTimer=0; player.coyoteTimer=0; player.jumpBufferTimer=0;
   player.squashTimer=0; player.celebrating=false; player.grounded=false;
+  player.lastKick=-9999;
   respawn.x = def.playerStart.x; respawn.y = def.playerStart.y + groundOffset;
   lives = 3; score = 0; elapsed = 0;
   balls = []; particles = [];
