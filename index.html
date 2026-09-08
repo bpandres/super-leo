@@ -534,11 +534,6 @@ function loadLevel(idx){
   updateHearts(); updateScore();
   document.getElementById('level-label').textContent = 'Level ' + (idx+1);
 }
-window.__slDebug = function(){
-  return {lives:lives, gameState:gameState, W:W, H:H, GROUND_Y:GROUND_Y, groundOffset:groundOffset,
-    player: {x:player.x, y:player.y, w:player.w, h:player.h, vy:player.vy, grounded:player.grounded, hurtTimer:player.hurtTimer},
-    groundSample: ground[0], platformSample: platforms[0]};
-};
 
 function updateHearts(){
   var el = document.getElementById('hearts');
@@ -774,7 +769,6 @@ function spawnParticles(x,y,color,n,spread){
 
 function damagePlayer(fromX){
   if (player.hurtTimer > 0) return;
-  console.warn('damagePlayer', {fromX:fromX, px:player.x, py:player.y, lives:lives});
   lives -= 1;
   player.hurtTimer = HURT_INVULN;
   player.vx = (player.x < fromX ? -1 : 1) * 5;
@@ -891,7 +885,6 @@ function updatePlayer(dt, step){
   } else if (player.grounded) player.runPhase = 0;
 
   if (player.y > H + 100){
-    console.warn('pitFall', {py:player.y, H:H, lives:lives});
     lives -= 1; updateHearts();
     if (lives <= 0){ triggerGameOver(); return; }
     player.x = respawn.x; player.y = respawn.y; player.vx=0; player.vy=0;
