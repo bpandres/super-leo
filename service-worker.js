@@ -1,4 +1,4 @@
-const CACHE_NAME = 'super-leo-v6';
+const CACHE_NAME = 'super-leo-v7';
 const APP_SHELL = [
   './',
   './index.html',
@@ -26,6 +26,32 @@ self.addEventListener('activate', function(event){
 
 self.addEventListener('fetch', function(event){
   if (event.request.method !== 'GET') return;
+
+  var isAppShellDoc = event.request.mode === 'navigate' ||
+    event.request.url.indexOf('/index.html') !== -1 ||
+    event.request.url.indexOf('/manifest.json') !== -1;
+
+  if (isAppShellDoc){
+    // Network-first: always try to get the latest game when online, so
+    // updates show up immediately instead of waiting on a stale cache.
+    // Only fall back to the cache when there's no connection at all.
+    event.respondWith(
+      fetch(event.request).then(function(response){
+        if (response && response.ok){
+          var copy = response.clone();
+          caches.open(CACHE_NAME).then(function(cache){ cache.put(event.request, copy); });
+        }
+        return response;
+      }).catch(function(){
+        return caches.match(event.request).then(function(cached){
+          return cached || caches.match('./index.html');
+        });
+      })
+    );
+    return;
+  }
+
+  // Static assets (icons, fonts): cache-first with a background refresh.
   event.respondWith(
     caches.match(event.request).then(function(cached){
       var networkFetch = fetch(event.request).then(function(response){
