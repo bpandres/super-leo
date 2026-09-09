@@ -269,7 +269,7 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
 
     <div class="screen" id="screen-champion" hidden>
       <p class="logo">CHAMPION!</p>
-      <p class="tagline">Leo wins the whole tournament!</p>
+      <p class="tagline">Leo defeated Captain Rex and won the whole tournament!</p>
       <div class="panel"><p class="score-line">Total score: <span id="champion-score">0</span></p></div>
       <button class="play" id="btn-champion-again">Play again</button>
     </div>
@@ -444,6 +444,42 @@ var LEVELS = [
     {x:1700,y:95,type:'shield'}
   ],
   goal:{x:2560,y:GROUND_Y-150,w:16,h:150}
+},
+{
+  name:'Final Showdown', theme:'stadium', worldWidth:3300,
+  playerStart:{x:60,y:GROUND_Y-46},
+  ground:[
+    {x0:0,x1:600},{x0:750,x1:1150},{x0:1330,x1:1700},{x0:1850,x1:2250},{x0:2420,x1:2820},{x0:2960,x1:3300}
+  ],
+  platforms:[
+    {x:640,y:330,w:90,h:24},{x:900,y:260,w:100,h:24},{x:1180,y:340,w:110,h:24},
+    {x:1760,y:300,w:100,h:24},{x:2000,y:230,w:100,h:24},{x:2280,y:340,w:100,h:24},
+    {x:2860,y:330,w:100,h:24},{x:110,y:150,w:120,h:24}
+  ],
+  movingPlatforms:[{x:2550,y:250,w:100,h:24,axis:'y',range:70,speed:0.8}],
+  springPads:[{x:130,y:GROUND_Y-20,w:40,h:20}],
+  spikes:[{x:1000,y:GROUND_Y-14,w:40,h:14},{x:2050,y:GROUND_Y-14,w:40,h:14}],
+  crates:[{x:1500,y:GROUND_Y-40,w:40,h:40},{x:2600,y:GROUND_Y-40,w:40,h:40}],
+  collectibleGroups:[
+    {cx:130,cy:360,n:5,spread:42},{cx:140,cy:120,n:3,spread:40},
+    {cx:660,cy:290,n:3,spread:36},{cx:920,cy:220,n:3,spread:36},
+    {cx:1200,cy:300,n:3,spread:36},{cx:1500,cy:360,n:3,spread:40},
+    {cx:1780,cy:260,n:3,spread:36},{cx:2020,cy:190,n:3,spread:36},
+    {cx:2300,cy:300,n:3,spread:36},{cx:2600,cy:360,n:4,spread:40},
+    {cx:2880,cy:290,n:3,spread:36},{cx:3100,cy:340,n:4,spread:36}
+  ],
+  enemies:[
+    {type:'grump',x:900,y:GROUND_Y-46,w:30,h:46,minX:780,maxX:1120,vx:1.4},
+    {type:'grump',x:1900,y:GROUND_Y-46,w:30,h:46,minX:1870,maxX:2220,vx:1.6},
+    {type:'grump',x:2650,y:GROUND_Y-46,w:30,h:46,minX:2460,maxX:2790,vx:1.1,isBoss:true,hp:3},
+    {type:'bouncer',x:3230,y:GROUND_Y-46,w:30,h:46,minY:GROUND_Y-150,maxY:GROUND_Y-46,vy:1.4,isGoalie:true}
+  ],
+  powerups:[
+    {x:150,y:100,type:'shield'},
+    {x:1200,y:110,type:'rapid'},
+    {x:2300,y:100,type:'speed'}
+  ],
+  goal:{x:3260,y:GROUND_Y-150,w:16,h:150}
 }
 ];
 
@@ -628,7 +664,10 @@ function loadLevel(idx){
         e.jumpCooldown = 900 + Math.random()*1400;
       }
     }
-    if (e.type === 'grump'){ e.shootTimer = 2000 + Math.random()*2000; e.kickTimer = 0; }
+    if (e.type === 'grump'){
+      e.shootTimer = 2000 + Math.random()*2000; e.kickTimer = 0;
+      if (e.isBoss){ e.maxHp = e.hp || 3; e.hp = e.maxHp; }
+    }
     return e;
   });
   collectibles = [];
@@ -929,12 +968,25 @@ function damagePlayer(fromX){
   if (lives <= 0){ triggerGameOver(); }
 }
 
+function bossAlive(){
+  for (var i=0;i<enemies.length;i++){ if (enemies[i].isBoss && enemies[i].alive) return true; }
+  return false;
+}
+
 function killEnemy(e, x, y, viaStomp){
+  if (e.isBoss && e.hp > 1){
+    e.hp -= 1;
+    spawnParticles(x, y, '#7a5230', 8, 4);
+    if (viaStomp){ SFX.stomp(); triggerShake(4,180); }
+    else { SFX.pop(); triggerShake(3,150); }
+    return;
+  }
   e.alive = false;
-  score += 50; updateScore();
-  spawnParticles(x, y, '#7a5230', 10, 5);
-  if (viaStomp){ SFX.stomp(); triggerShake(4,180); }
-  else { SFX.pop(); triggerShake(3,150); }
+  score += e.isBoss ? 300 : 50; updateScore();
+  spawnParticles(x, y, '#7a5230', e.isBoss?24:10, e.isBoss?7:5);
+  if (viaStomp){ SFX.stomp(); triggerShake(e.isBoss?10:4, e.isBoss?260:180); }
+  else { SFX.pop(); triggerShake(e.isBoss?8:3, e.isBoss?220:150); }
+  if (e.isBoss){ SFX.levelComplete(); }
 }
 
 // ---------- Update ----------
@@ -1071,13 +1123,19 @@ function updateEnemies(dt, step){
         e.windupDir = player.x < e.x ? -1 : 1;
       }
       if (e.shootTimer <= 0 && onScreen && gameState==='playing'){
-        e.shootTimer = 3200 + Math.random()*2400;
+        if (e.isBoss){
+          // The Captain gets faster and meaner as he takes damage.
+          var enraged = e.hp <= 1;
+          e.shootTimer = (enraged ? 900 : 1400) + Math.random()*(enraged ? 700 : 1000);
+        } else {
+          e.shootTimer = 3200 + Math.random()*2400;
+        }
         var kickDir = e.windingUp ? e.windupDir : (player.x < e.x ? -1 : 1);
         e.windingUp = false;
         e.kickTimer = 260; e.kickDir = kickDir;
         enemyBalls.push({
           x: e.x + (kickDir>0 ? e.w : -14), y: e.y + e.h*0.55,
-          w:14, h:14, vx: kickDir*5.5, dir:kickDir, life:3000
+          w:14, h:14, vx: kickDir*(e.isBoss?7:5.5), dir:kickDir, life:3000
         });
         SFX.enemyKick();
         spawnParticles(e.x+e.w/2, e.y+e.h*0.6, '#E8493B', 4, 3);
@@ -1164,7 +1222,12 @@ function updateEnemies(dt, step){
     });
     if (b.life > 0 && rectsOverlap(bb, goal)){
       b.life = 0;
-      triggerLevelComplete();
+      if (bossAlive()){
+        spawnParticles(b.x+7, b.y+7, '#FFC531', 6, 3);
+        SFX.pop();
+      } else {
+        triggerLevelComplete();
+      }
     }
     enemyBalls.forEach(function(eb){
       if (eb.life > 0 && b.life > 0 && rectsOverlap(bb, {x:eb.x,y:eb.y,w:eb.w,h:eb.h})){
@@ -1439,9 +1502,66 @@ function drawCaveBackground(){
   }
 }
 
+function drawStadiumBackground(){
+  var g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#1B2350'); g.addColorStop(0.55,'#3A2E63'); g.addColorStop(1,'#6B4A5E');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  // Floodlight towers with soft light cones, spaced along the pitch.
+  for (var f=0; f<5; f++){
+    var fx = ((f*420 + 120 - camX*0.3) % (W+360)) - 180;
+    var topY = 30 + (f%2)*10;
+    ctx.fillStyle = 'rgba(20,18,30,0.7)';
+    ctx.fillRect(fx-3, topY, 6, GROUND_Y-topY-40);
+    ctx.fillRect(fx-16, topY-8, 32, 8);
+    var lg = ctx.createRadialGradient(fx,topY-4,4,fx,topY-4,150);
+    lg.addColorStop(0,'rgba(255,250,220,0.55)'); lg.addColorStop(0.5,'rgba(255,250,220,0.16)'); lg.addColorStop(1,'rgba(255,250,220,0)');
+    ctx.fillStyle = lg;
+    ctx.beginPath(); ctx.arc(fx, topY-4, 150, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#FFF7D6';
+    for (var b=0;b<6;b++){
+      var bxp = fx-12 + (b%3)*12, byp = topY-8-Math.floor(b/3)*6;
+      ctx.beginPath(); ctx.arc(bxp,byp,2,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  for (var d=0;d<6;d++){
+    var dx = ((d*300 - camX*0.15) % (W+260)) - 130;
+    drawCloud(dx, 60+(d%3)*30);
+  }
+
+  // Crowded stands: a tiered silhouette speckled with tiny fan-colored dots.
+  var fanColors = ['#FFC531','#E63946','#4CAF50','#5EC4F2','#fff','#FF8AD8'];
+  for (var t=0;t<3;t++){
+    var tierY = GROUND_Y - 70 - t*44;
+    var tierH = 46;
+    ctx.fillStyle = 'rgba(15,14,28,0.82)';
+    ctx.beginPath(); ctx.rect(0, tierY, W, tierH); ctx.fill();
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, tierY, W, tierH); ctx.clip();
+    for (var s=0;s<26;s++){
+      var seed = t*97+s;
+      var sx = ((s*33 + t*17 - camX*(0.4+t*0.1)) % (W+40)) - 10;
+      var sy = tierY + 8 + ((seed*53)%(tierH-14));
+      ctx.fillStyle = fanColors[seed%fanColors.length];
+      ctx.beginPath(); ctx.arc(sx, sy, 2.6, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Pennant bunting strung along the very top of the stands.
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth=1.5;
+  var buntY = GROUND_Y - 70 - 3*44;
+  ctx.beginPath();
+  for (var p=0; p<W; p+=40){ ctx.moveTo(p, buntY); ctx.quadraticCurveTo(p+20, buntY+10, p+40, buntY); }
+  ctx.stroke();
+}
+
 function drawBackground(){
   if (theme === 'cave') drawCaveBackground();
   else if (theme === 'sky') drawSkyBackground();
+  else if (theme === 'stadium') drawStadiumBackground();
   else drawGrassBackground();
 }
 
@@ -1714,7 +1834,7 @@ function drawGoal(){
     var signY = goal.y - 26;
     ctx.font = "bold 15px 'Baloo 2', sans-serif";
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    var label = 'Kick a goal to win!';
+    var label = bossAlive() ? 'Defeat the Captain first!' : 'Kick a goal to win!';
     var tw = ctx.measureText(label).width;
     var signX = x + goal.w/2;
     var halfSign = tw/2 + 12;
@@ -1848,6 +1968,28 @@ function drawEnemyHairStyle(style, hairColor){
   }
 }
 
+function drawBossHealthBar(e){
+  var x = e.x - camX;
+  if (x + e.w < -30 || x > W+30) return;
+  var barW = 64, barH = 8;
+  var bx = x + e.w/2 - barW/2, by = e.y - 40;
+  ctx.fillStyle = 'rgba(20,20,20,0.55)';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx-3,by-3,barW+6,barH+6,5); else ctx.rect(bx-3,by-3,barW+6,barH+6);
+  ctx.fill();
+  var pct = Math.max(0, e.hp/e.maxHp);
+  var hg = ctx.createLinearGradient(bx,0,bx+barW,0);
+  hg.addColorStop(0,'#E8493B'); hg.addColorStop(1,'#FFC531');
+  ctx.fillStyle = hg;
+  ctx.fillRect(bx, by, barW*pct, barH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1;
+  ctx.strokeRect(bx, by, barW, barH);
+  ctx.font = "bold 10px 'Baloo 2', sans-serif";
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillStyle = '#FFC531';
+  ctx.fillText('CAPTAIN', bx+barW/2, by-3);
+}
+
 function drawEnemy(e){
   var x = e.x - camX;
   if (x+e.w < -20 || x > W+20) return;
@@ -1863,7 +2005,8 @@ function drawEnemy(e){
     ctx.scale(e.dir<0?-1:1, 1);
 
     var faceSeedE = e.faceSeed || 0;
-    var heightScaleE = 0.93 + (faceSeedE % 5) * 0.035;
+    // The boss reads as a much bigger, tougher presence on the pitch.
+    var heightScaleE = e.isBoss ? 1.55 : (0.93 + (faceSeedE % 5) * 0.035);
     ctx.translate(0, 21);
     ctx.scale(heightScaleE, heightScaleE);
     ctx.translate(0, -21);
@@ -1879,7 +2022,7 @@ function drawEnemy(e){
     ];
     var skinGradE = skinPaletteE[faceSeedE % skinPaletteE.length];
     var hairColorE = hairPaletteE[Math.floor(faceSeedE/skinPaletteE.length) % hairPaletteE.length];
-    var jerseyColorsE = jerseyPaletteE[(faceSeedE*3+1) % jerseyPaletteE.length];
+    var jerseyColorsE = e.isBoss ? ['#2B2E33','#111315'] : jerseyPaletteE[(faceSeedE*3+1) % jerseyPaletteE.length];
     var hairStyleE = (faceSeedE*7+2) % 4;
     var legGradE = '#22262E';
 
@@ -1931,7 +2074,9 @@ function drawEnemy(e){
     ctx.fillStyle = '#DCE1E6';
     ctx.beginPath(); ctx.arc(8.5,-12,2.6,0,Math.PI*2); ctx.fill();
     ctx.fillStyle = skinGradE;
-    ctx.save(); ctx.translate(8.5,-9); ctx.rotate(-strideL*0.06); ctx.fillRect(-2.2,0,4.4,10); ctx.restore();
+    ctx.save(); ctx.translate(8.5,-9); ctx.rotate(-strideL*0.06); ctx.fillRect(-2.2,0,4.4,10);
+    if (e.isBoss){ ctx.fillStyle = '#FFC531'; ctx.fillRect(-2.4,2.5,4.8,2.4); }
+    ctx.restore();
 
     ctx.fillStyle = skinGradE;
     ctx.beginPath(); ctx.ellipse(0,-23,8,8.6,0,0,Math.PI*2); ctx.fill();
@@ -2335,6 +2480,7 @@ function render(){
   drawCollectibles();
   drawPowerups();
   enemies.forEach(function(e){ if (e.alive) drawEnemy(e); });
+  enemies.forEach(function(e){ if (e.alive && e.isBoss) drawBossHealthBar(e); });
   drawBalls();
   drawEnemyBalls();
   drawPlayerAura();
