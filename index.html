@@ -209,10 +209,7 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
 #rotate-prompt .icon{font-size:56px;animation:tilt 1.6s ease-in-out infinite;}
 #rotate-prompt p{margin:0;font-size:18px;font-weight:700;max-width:280px;}
 @keyframes tilt{0%,100%{transform:rotate(0deg);}50%{transform:rotate(90deg);}}
-@media (orientation:portrait){
-  #rotate-prompt{display:flex;}
-  #stage{display:none;}
-}
+#rotate-prompt.active{display:flex;}
 @media (prefers-reduced-motion:reduce){
   #rotate-prompt .icon{animation:none;}
 }
@@ -223,6 +220,7 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
 <div id="rotate-prompt">
   <div class="icon" aria-hidden="true">&#128241;</div>
   <p>Turn your phone sideways to play Super Leo!</p>
+  <button class="link-btn" id="btn-cancel-rotate" style="color:#fff;">Never mind, go back</button>
 </div>
 <div id="stage">
   <div id="frame">
@@ -536,11 +534,10 @@ var LOGICAL_H_MIN = 380, LOGICAL_H_MAX = 620;
 function computeCanvasBox(){
   var frame = document.getElementById('frame');
   var r = frame.getBoundingClientRect();
-  // While the device is in portrait, #stage is display:none (the rotate
-  // prompt covers it instead), so the frame measures 0x0. Treat that as
-  // "nothing to measure right now" rather than falling back to a default
-  // size — resyncing against a bogus 0x0-derived box is what caused
-  // sizing to drift after rotating away and back.
+  // Defensive: if the frame is measured before the page has finished an
+  // initial layout pass (0x0), treat that as "nothing to measure right
+  // now" rather than falling back to a default size — resyncing against a
+  // bogus 0x0-derived box is what caused sizing to drift in the past.
   if (!r.width || !r.height) return null;
   var rW = Math.max(320, r.width);
   var rH = Math.max(200, r.height);
@@ -557,7 +554,7 @@ GROUND_Y = H - 100;
 var groundOffset = GROUND_Y - GROUND_Y_REF;
 function resyncCanvasSize(){
   var box = computeCanvasBox();
-  if (!box) return; // hidden right now (portrait) — leave last-known-good sizing alone
+  if (!box) return; // frame not measurable yet — leave last-known-good sizing alone
   if (box.w === W && box.h === H) return;
   W = box.w; H = box.h;
   canvas.width = W; canvas.height = H;
@@ -2977,12 +2974,46 @@ function showTitle(){
   updateModeToggleUI();
 }
 
-function startLevel(idx){
+// The title/menu screens work fine narrow, but actual gameplay needs
+// landscape — so the rotate prompt only appears once the player tries to
+// start a level, instead of blanking the whole game the moment the phone
+// is portrait.
+var pendingLevelStart = null;
+function isPortraitNow(){
+  try{ return window.matchMedia('(orientation: portrait)').matches; }
+  catch(e){ return window.innerHeight > window.innerWidth; }
+}
+function showRotatePrompt(){ document.getElementById('rotate-prompt').classList.add('active'); }
+function hideRotatePrompt(){ document.getElementById('rotate-prompt').classList.remove('active'); }
+function checkPendingLevelStart(){
+  if (pendingLevelStart !== null && !isPortraitNow()){
+    var idx = pendingLevelStart;
+    pendingLevelStart = null;
+    hideRotatePrompt();
+    beginLevel(idx);
+  }
+}
+window.addEventListener('resize', checkPendingLevelStart);
+window.addEventListener('orientationchange', checkPendingLevelStart);
+document.getElementById('btn-cancel-rotate').addEventListener('click', function(){
+  pendingLevelStart = null;
+  hideRotatePrompt();
+});
+
+function beginLevel(idx){
   ensureAudio();
   loadLevel(idx);
   gameState = 'playing';
   hideAllScreens();
   document.getElementById('hud').hidden = false;
+}
+function startLevel(idx){
+  if (isPortraitNow()){
+    pendingLevelStart = idx;
+    showRotatePrompt();
+    return;
+  }
+  beginLevel(idx);
 }
 
 function triggerGameOver(){
