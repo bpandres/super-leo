@@ -2367,7 +2367,7 @@ function drawIntroCard(){
     else cur = test;
   });
   if (cur) lines.push(cur);
-  var lineH = 20, boxH = lines.length*lineH + 20, boxY = 54;
+  var lineH = 20, topPad = 10, boxH = lines.length*lineH + topPad*2, boxY = 54;
   var boxW = Math.min(maxWidth+28, W-16);
   ctx.fillStyle = 'rgba(15,25,40,0.68)';
   ctx.beginPath();
@@ -2377,7 +2377,7 @@ function drawIntroCard(){
   ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
   ctx.fillStyle = '#fff';
   lines.forEach(function(line, i){
-    ctx.fillText(line, W/2, boxY+16+i*lineH);
+    ctx.fillText(line, W/2, boxY+topPad+lineH/2+i*lineH);
   });
   ctx.restore();
 }
