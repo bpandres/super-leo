@@ -1686,7 +1686,7 @@ function drawEnemy(e){
     ctx.scale(e.dir<0?-1:1, 1);
 
     var faceSeedE = e.faceSeed || 0;
-    var heightScaleE = 0.82 + (faceSeedE % 5) * 0.09;
+    var heightScaleE = 0.93 + (faceSeedE % 5) * 0.035;
     ctx.translate(0, 21);
     ctx.scale(heightScaleE, heightScaleE);
     ctx.translate(0, -21);
@@ -1775,7 +1775,7 @@ function drawEnemy(e){
     ctx.beginPath(); ctx.ellipse(cx, e.baseY+e.h/2+2, e.w/2*0.85, 3.5, 0, 0, Math.PI*2); ctx.fill();
     ctx.save();
     ctx.translate(cx, e.baseY+e.h/2);
-    var heightScaleK = 0.85 + ((e.faceSeed||0) % 4) * 0.08;
+    var heightScaleK = 0.95 + ((e.faceSeed||0) % 4) * 0.035;
     ctx.translate(0, 21);
     ctx.scale(heightScaleK, heightScaleK);
     ctx.translate(0, -21);
