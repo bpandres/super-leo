@@ -574,8 +574,8 @@ function loadLevel(idx){
   springPads = clone(def.springPads).map(function(sp){ sp.y += groundOffset; return sp; });
   spikes = clone(def.spikes).map(function(sk){ sk.y += groundOffset; return sk; });
   crates = clone(def.crates).map(function(c){ c.alive = true; c.y += groundOffset; return c; });
-  enemies = clone(def.enemies).map(function(e){
-    e.alive = true; e.dir = 1; e.y += groundOffset;
+  enemies = clone(def.enemies).map(function(e, idx){
+    e.alive = true; e.dir = 1; e.y += groundOffset; e.faceSeed = idx;
     if (e.type === 'bouncer'){
       e.baseY = e.y; e.t = Math.random()*10; e.dirY = 1;
       if (e.minY !== undefined){
@@ -1455,20 +1455,25 @@ function drawGoal(){
   for (var i=6;i<goal.w;i+=6) { ctx.beginPath(); ctx.moveTo(x+i,goal.y); ctx.lineTo(x+i-16,goal.y+goal.h); ctx.stroke(); }
   for (var j=6;j<goal.h;j+=8) { ctx.beginPath(); ctx.moveTo(x,goal.y+j); ctx.lineTo(x+goal.w,goal.y+j); ctx.stroke(); }
 
-  var signX = x + goal.w/2;
-  var signY = goal.y - 26;
-  ctx.font = "bold 15px 'Baloo 2', sans-serif";
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  var label = 'Kick a goal to win!';
-  var tw = ctx.measureText(label).width;
-  ctx.fillStyle = 'rgba(27,42,58,0.72)';
-  ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(signX-tw/2-12, signY-14, tw+24, 28, 14);
-  else ctx.rect(signX-tw/2-12, signY-14, tw+24, 28);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.fillStyle = '#FFC531';
-  ctx.fillText(label, signX, signY+1);
+  if (gameState==='playing' && x > -200 && x < W+200){
+    var signY = goal.y - 26;
+    ctx.font = "bold 15px 'Baloo 2', sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var label = 'Kick a goal to win!';
+    var tw = ctx.measureText(label).width;
+    var signX = x + goal.w/2;
+    var halfSign = tw/2 + 12;
+    if (signX + halfSign > W - 4) signX = W - 4 - halfSign;
+    if (signX - halfSign < 4) signX = 4 + halfSign;
+    ctx.fillStyle = 'rgba(27,42,58,0.72)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(signX-tw/2-12, signY-14, tw+24, 28, 14);
+    else ctx.rect(signX-tw/2-12, signY-14, tw+24, 28);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#FFC531';
+    ctx.fillText(label, signX, signY+1);
+  }
 }
 
 function drawSoccerBall(r, spin){
@@ -1537,7 +1542,11 @@ function drawEnemy(e){
     ctx.translate(cx, e.y+e.h/2);
     ctx.scale(e.dir<0?-1:1, 1);
 
-    var skinGradE = '#E3A579';
+    var skinPaletteE = ['#E3A579','#C68A5C','#F0C9A0','#8D5A3C'];
+    var hairPaletteE = ['#2B1A10','#5C3A1E','#8A5A30','#1A1A1A','#6B4226'];
+    var faceSeedE = e.faceSeed || 0;
+    var skinGradE = skinPaletteE[faceSeedE % skinPaletteE.length];
+    var hairColorE = hairPaletteE[Math.floor(faceSeedE/skinPaletteE.length) % hairPaletteE.length];
     var legGradE = '#22262E';
 
     var kickingE = e.kickTimer > 0;
@@ -1592,11 +1601,11 @@ function drawEnemy(e){
 
     ctx.fillStyle = skinGradE;
     ctx.beginPath(); ctx.ellipse(0,-23,8,8.6,0,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#2B1A10';
+    ctx.fillStyle = hairColorE;
     ctx.beginPath(); ctx.arc(0,-25.5,8.2,Math.PI,Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.moveTo(-8,-24); ctx.quadraticCurveTo(-9,-18.5,-7.2,-17.3); ctx.quadraticCurveTo(-7.8,-21.5,-4.6,-23.5); ctx.closePath(); ctx.fill();
 
-    ctx.strokeStyle='#2B1A10'; ctx.lineWidth=1.5; ctx.lineCap='round';
+    ctx.strokeStyle=hairColorE; ctx.lineWidth=1.5; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(-5.8,-24.3); ctx.lineTo(-1.4,-22.5); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(5.8,-24.3); ctx.lineTo(1.4,-22.5); ctx.stroke();
     ctx.fillStyle='#2b2b2b';
@@ -1961,6 +1970,7 @@ function render(){
   drawParticles();
   if (gameState==='levelcomplete' || gameState==='champion') drawConfetti();
   ctx.restore();
+  drawRain();
 }
 
 // ---------- Game state flow ----------
@@ -2064,6 +2074,7 @@ function loop(ts){
   var step = dt/16.6667;
   elapsed += dt;
   if (shakeTimer > 0) shakeTimer = Math.max(0, shakeTimer - dt);
+  updateWeather(dt, step);
 
   if (gameState==='playing'){
     updateMovers(dt, step);
@@ -2079,6 +2090,57 @@ function loop(ts){
 
   render();
   requestAnimationFrame(loop);
+}
+
+// ---------- Weather ----------
+var rainActive = false;
+var rainTimer = 0;
+var rainCooldown = 20000 + Math.random()*25000;
+var rainDrops = [];
+function initRainDrops(){
+  rainDrops = [];
+  for (var i=0; i<70; i++){
+    rainDrops.push({
+      x: Math.random()*W, y: Math.random()*H,
+      len: 10+Math.random()*10, speed: 9+Math.random()*5
+    });
+  }
+}
+function updateWeather(dt, step){
+  if (rainActive){
+    rainTimer -= dt;
+    if (rainTimer <= 0){
+      rainActive = false;
+      rainCooldown = 30000 + Math.random()*40000;
+      return;
+    }
+    rainDrops.forEach(function(d){
+      d.y += d.speed*step*2;
+      d.x -= d.speed*step*0.3;
+      if (d.y > H){ d.y = -10; d.x = Math.random()*W; }
+      if (d.x < -20){ d.x = W+20; }
+    });
+  } else {
+    rainCooldown -= dt;
+    if (rainCooldown <= 0){
+      rainActive = true;
+      rainTimer = 45000 + Math.random()*30000;
+      initRainDrops();
+    }
+  }
+}
+function drawRain(){
+  if (!rainActive) return;
+  ctx.fillStyle = 'rgba(20,30,55,0.14)';
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = 'rgba(210,230,255,0.5)';
+  ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  rainDrops.forEach(function(d){
+    ctx.beginPath();
+    ctx.moveTo(d.x, d.y);
+    ctx.lineTo(d.x-4, d.y+d.len);
+    ctx.stroke();
+  });
 }
 
 loadLevel(0);
