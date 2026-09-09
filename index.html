@@ -142,6 +142,8 @@ button.play:focus-visible{outline:3px solid #fff;outline-offset:3px;}
 button.play.secondary{background:#2E6DA4;box-shadow:0 6px 0 #1b4a75;}
 button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
 .score-line{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:clamp(14px,2.6vw,19px);color:var(--ink);margin:0 0 4px;}
+.score-line.new-best{color:#2E9E4F;}
+.level-best-time{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:clamp(10px,2vw,12px);color:var(--ink);opacity:0.75;}
 .btn-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
 .link-btn{background:none;border:none;color:#fff;text-decoration:underline;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;cursor:pointer;padding:4px;}
 
@@ -219,6 +221,7 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
       <div class="hud-group">
         <div class="hud-pill"><span class="ball-icon" aria-hidden="true"></span><span id="score">0</span></div>
         <div class="hud-pill" id="level-label">Level 1</div>
+        <div class="hud-pill" id="timer-badge">⏱ 0:00</div>
         <div class="hud-pill" id="powerup-badge" hidden><span id="powerup-icon">⚡</span><span id="powerup-timer">0</span></div>
       </div>
       <div class="hud-group">
@@ -254,7 +257,9 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
       <div class="star-row" id="levelcomplete-stars"></div>
       <div class="panel">
         <p class="score-line">Soccer balls: <span id="levelcomplete-collected">0/0</span></p>
-        <p class="score-line" style="margin:0;">Score: <span id="levelcomplete-score">0</span></p>
+        <p class="score-line">Score: <span id="levelcomplete-score">0</span></p>
+        <p class="score-line">Time: <span id="levelcomplete-time">0:00</span></p>
+        <p class="score-line" id="levelcomplete-best" style="margin:0;">Best: 0:00</p>
       </div>
       <div class="btn-row">
         <button class="play" id="btn-next-level">Next level</button>
@@ -528,6 +533,23 @@ function saveProgress(){
 }
 var progress = loadProgress();
 
+function loadBestTimes(){
+  try{
+    var raw = JSON.parse(localStorage.getItem('superleo_besttimes'));
+    return (raw && typeof raw === 'object') ? raw : {};
+  }catch(e){ return {}; }
+}
+function saveBestTimes(){
+  try{ localStorage.setItem('superleo_besttimes', JSON.stringify(bestTimes)); }catch(e){}
+}
+var bestTimes = loadBestTimes(); // { [levelIndex]: milliseconds }
+function formatTime(ms){
+  var totalSec = Math.floor(ms/1000);
+  var m = Math.floor(totalSec/60);
+  var s = totalSec % 60;
+  return m + ':' + (s<10?'0':'') + s;
+}
+
 // ---------- Working level state ----------
 var currentLevelIndex = 0;
 var theme = 'grass';
@@ -556,7 +578,7 @@ var player = {
   powerupTimer:0
 };
 var respawn = {x:60, y:GROUND_Y-46};
-var lives, score, gameState, elapsed;
+var lives, score, gameState, elapsed, levelTimer;
 var keys = {left:false,right:false,jump:false,kick:false};
 var jumpPressedEdge = false, kickPressedEdge = false;
 
@@ -627,11 +649,16 @@ function loadLevel(idx){
   player.activePowerup = null; player.powerupTimer = 0;
   updatePowerupBadge();
   respawn.x = def.playerStart.x; respawn.y = def.playerStart.y + groundOffset;
-  lives = 3; score = 0; elapsed = 0;
+  lives = 3; score = 0; elapsed = 0; levelTimer = 0;
   balls = []; enemyBalls = []; particles = [];
   camX = 0;
-  updateHearts(); updateScore();
+  updateHearts(); updateScore(); updateTimerDisplay();
   document.getElementById('level-label').textContent = 'Level ' + (idx+1);
+}
+
+function updateTimerDisplay(){
+  var el = document.getElementById('timer-badge');
+  if (el) el.textContent = '⏱ ' + formatTime(levelTimer);
 }
 
 function updateHearts(){
@@ -697,6 +724,12 @@ function renderLevelSelect(){
     label.className = 'level-names';
     label.textContent = locked ? 'Locked' : lv.name;
     wrap.appendChild(btn); wrap.appendChild(label);
+    if (!locked && bestTimes[i] !== undefined){
+      var timeLabel = document.createElement('div');
+      timeLabel.className = 'level-best-time';
+      timeLabel.textContent = 'Best: ' + formatTime(bestTimes[i]);
+      wrap.appendChild(timeLabel);
+    }
     container.appendChild(wrap);
   });
 }
@@ -1421,18 +1454,67 @@ function groundPalette(){
 
 function drawGround(){
   var pal = groundPalette();
+  var collarH = 14; // straight collar right under the grass cap, before the rock face starts jagging
+  var jagStep = 15;
+  var bottomY = H+4;
   ground.forEach(function(g){
     var x = g.x0 - camX, w = g.x1-g.x0;
     if (x+w < 0 || x > W) return;
+    var seed = Math.floor(g.x0);
+
+    // The drop-off edges get an irregular, rocky silhouette instead of a
+    // perfectly straight cliff face.
+    function jagPoints(baseX, dirSign, seedOffset){
+      var pts = [];
+      for (var y=GROUND_Y+collarH; y<bottomY; y+=jagStep){
+        var n = Math.sin(y*0.22 + seed*0.7 + seedOffset);
+        var amp = 3 + Math.abs(Math.sin(y*0.07 + seed*1.3 + seedOffset))*5;
+        pts.push({x: baseX + dirSign*amp*n, y:y});
+      }
+      pts.push({x:baseX, y:bottomY});
+      return pts;
+    }
+    var leftPts = jagPoints(x, -1, 0);
+    var rightPts = jagPoints(x+w, 1, 500);
+
+    function traceBody(){
+      ctx.beginPath();
+      ctx.moveTo(x, GROUND_Y);
+      ctx.lineTo(x, GROUND_Y+collarH);
+      leftPts.forEach(function(p){ ctx.lineTo(p.x,p.y); });
+      ctx.lineTo(x+w, bottomY);
+      for (var i=rightPts.length-1;i>=0;i--) ctx.lineTo(rightPts[i].x, rightPts[i].y);
+      ctx.lineTo(x+w, GROUND_Y+collarH);
+      ctx.lineTo(x+w, GROUND_Y);
+      ctx.closePath();
+    }
+
+    traceBody();
     var dg = ctx.createLinearGradient(0,GROUND_Y,0,H);
     dg.addColorStop(0,pal.dirtTop); dg.addColorStop(0.15,pal.dirtMid); dg.addColorStop(1,pal.dirtBot);
     ctx.fillStyle = dg;
-    ctx.fillRect(x, GROUND_Y, w, H-GROUND_Y);
+    ctx.fill();
+
+    ctx.save();
+    traceBody();
+    ctx.clip();
     ctx.fillStyle = pal.speckle;
-    var seed = Math.floor(g.x0);
     for (var r=20;r<w-10;r+=53){
       ctx.beginPath(); ctx.arc(x+ (r+seed*7)%w, GROUND_Y+28+((r*13)%40), 5+((r*7)%5), 0, Math.PI*2); ctx.fill();
     }
+    ctx.restore();
+
+    // Border definition along the jagged rock faces.
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x, GROUND_Y+collarH);
+    leftPts.forEach(function(p){ ctx.lineTo(p.x,p.y); });
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x+w, GROUND_Y+collarH);
+    rightPts.forEach(function(p){ ctx.lineTo(p.x,p.y); });
+    ctx.stroke();
+
     var gg = ctx.createLinearGradient(0,GROUND_Y-12,0,GROUND_Y+6);
     gg.addColorStop(0,pal.capTop); gg.addColorStop(1,pal.capBot);
     ctx.fillStyle = gg;
@@ -1447,33 +1529,116 @@ function drawGround(){
 
 function drawPlatformList(list){
   var pal = groundPalette();
-  var plankTop = theme==='cave' ? '#9199A3' : '#C98A45';
-  var plankBot = theme==='cave' ? '#5C6069' : '#8A5A2B';
+  var isCave = theme === 'cave';
   list.forEach(function(p){
     var x = p.x - camX;
     if (x+p.w < 0 || x > W) return;
-    var pg = ctx.createLinearGradient(0,p.y,0,p.y+p.h);
-    pg.addColorStop(0,plankTop); pg.addColorStop(1,plankBot);
+    // Seed the shape/texture from the platform's fixed starting position
+    // (not its live x), so a moving platform doesn't reshuffle its look
+    // every frame as it slides back and forth.
+    var seed = Math.floor(p.baseX !== undefined ? p.baseX : p.x);
+    function rnd(n){ return ((Math.sin(seed*12.9898 + n*78.233)*43758.5453)%1+1)%1; }
+
+    // A floating chunk of terrain: rounded top corners, a tapered, uneven
+    // underside (like a clump of earth), instead of a plain rectangle.
+    var r = Math.min(9, p.h*0.5, p.w*0.25);
+    var inset = Math.min(14, p.w*0.16);
+    var bulge = p.h*0.22 + rnd(1)*p.h*0.18;
+    var midDip1 = p.y+p.h + bulge*(0.75+rnd(2)*0.4);
+    var midDip2 = p.y+p.h + bulge*(0.55+rnd(3)*0.4);
+    var bottomY = p.y+p.h+bulge;
+    var top = p.y, left = x, right = x+p.w, bw = p.w;
+
+    ctx.beginPath();
+    ctx.moveTo(left+r, top);
+    ctx.lineTo(right-r, top);
+    ctx.quadraticCurveTo(right, top, right, top+r);
+    ctx.lineTo(right-inset*0.3, top+p.h*0.7);
+    ctx.quadraticCurveTo(right-inset*0.6, midDip1, left+bw*0.68, bottomY*0.5+ (p.y+p.h)*0.5);
+    ctx.quadraticCurveTo(left+bw*0.5, bottomY, left+bw*0.32, midDip2);
+    ctx.quadraticCurveTo(left+inset*0.6, midDip1*0.9+p.y*0.1, left+inset*0.3, top+p.h*0.7);
+    ctx.lineTo(left, top+r);
+    ctx.quadraticCurveTo(left, top, left+r, top);
+    ctx.closePath();
+
+    var pg = ctx.createLinearGradient(0,top,0,bottomY);
+    pg.addColorStop(0,pal.dirtTop); pg.addColorStop(0.4,pal.dirtMid); pg.addColorStop(1,pal.dirtBot);
     ctx.fillStyle = pg;
-    ctx.fillRect(x, p.y, p.w, p.h);
-    var seed = Math.floor(p.x);
-    ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth=0.8;
-    for (var wg=0; wg<p.w; wg+=9){
-      var wy = p.y + p.h*0.3 + Math.sin((wg+seed)*0.4)*p.h*0.18;
-      ctx.beginPath(); ctx.moveTo(x+wg, wy); ctx.quadraticCurveTo(x+wg+4, wy+p.h*0.25, x+wg+9, wy); ctx.stroke();
+    ctx.fill();
+
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = pal.speckle;
+    for (var s=0; s<bw; s+=17){
+      var sx = left + (s + seed*5) % bw;
+      var sy = top + p.h*0.5 + ((s*11+seed)%Math.max(1,bulge+p.h*0.5));
+      ctx.beginPath(); ctx.arc(sx, sy, 2+((s*3)%3), 0, Math.PI*2); ctx.fill();
     }
-    if (theme !== 'cave'){
-      var knotX = x + (seed%p.w + p.w*0.4) % (p.w-10) + 5;
-      ctx.strokeStyle = 'rgba(70,40,15,0.4)'; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.ellipse(knotX, p.y+p.h/2, 2.6, p.h*0.32, 0, 0, Math.PI*2); ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(knotX, p.y+p.h/2, 1.1, p.h*0.16, 0, 0, Math.PI*2); ctx.stroke();
-    }
-    ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth=1;
-    for (var k=14;k<p.w;k+=16){ ctx.beginPath(); ctx.moveTo(x+k,p.y+3); ctx.lineTo(x+k,p.y+p.h-3); ctx.stroke(); }
-    var pgg = ctx.createLinearGradient(0,p.y-6,0,p.y+2);
+    ctx.restore();
+
+    ctx.strokeStyle = isCave ? 'rgba(0,0,0,0.4)' : 'rgba(40,20,5,0.4)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // Grass (or rocky) cap tracing the same rounded top edge.
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(left+r, top);
+    ctx.lineTo(right-r, top);
+    ctx.quadraticCurveTo(right, top, right, top+r);
+    ctx.lineTo(right, top-6);
+    ctx.lineTo(left, top-6);
+    ctx.lineTo(left, top+r);
+    ctx.quadraticCurveTo(left, top, left+r, top);
+    ctx.closePath();
+    var capH = 8;
+    var pgg = ctx.createLinearGradient(0,top-capH,0,top+2);
     pgg.addColorStop(0,pal.capTop); pgg.addColorStop(1,pal.capBot);
     ctx.fillStyle = pgg;
-    ctx.fillRect(x, p.y-6, p.w, 8);
+    ctx.beginPath();
+    ctx.moveTo(left+r, top-capH);
+    ctx.lineTo(right-r, top-capH);
+    ctx.quadraticCurveTo(right, top-capH, right, top-capH+r);
+    ctx.lineTo(right, top+2);
+    ctx.lineTo(left, top+2);
+    ctx.lineTo(left, top-capH+r);
+    ctx.quadraticCurveTo(left, top-capH, left+r, top-capH);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = isCave ? 'rgba(0,0,0,0.35)' : 'rgba(20,50,15,0.4)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.restore();
+
+    if (!isCave){
+      // Little tufts of grass and thin dangling roots for a leafier,
+      // more organic floating-island feel.
+      ctx.fillStyle = pal.tuft;
+      for (var i=4;i<bw-4;i+=13){
+        var th = 4+((i*31+seed)%5);
+        ctx.fillRect(x+i, top-capH-th+3, 2.4, th);
+      }
+      ctx.strokeStyle = 'rgba(74,46,23,0.55)'; ctx.lineWidth=1.4; ctx.lineCap='round';
+      var rootXs = [bw*0.22, bw*0.5, bw*0.76];
+      rootXs.forEach(function(rx, ri){
+        var baseX = x+rx, baseY = top+p.h*0.85;
+        var len = 6+((seed+ri*17)%9);
+        ctx.beginPath();
+        ctx.moveTo(baseX, baseY);
+        ctx.quadraticCurveTo(baseX+((ri%2)?3:-3), baseY+len*0.6, baseX+((ri%2)?2:-2), baseY+len);
+        ctx.stroke();
+      });
+    } else {
+      // A couple of hairline cracks instead of roots underneath.
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth=1;
+      [bw*0.3, bw*0.65].forEach(function(rx, ri){
+        var baseX = x+rx, baseY = top+p.h*0.6;
+        ctx.beginPath();
+        ctx.moveTo(baseX, baseY);
+        ctx.lineTo(baseX+((ri%2)?5:-5), baseY+7+ri*3);
+        ctx.stroke();
+      });
+    }
   });
 }
 function drawPlatforms(){ drawPlatformList(platforms); }
@@ -2224,6 +2389,15 @@ function triggerLevelComplete(){
   progress.unlocked = Math.max(progress.unlocked, Math.min(currentLevelIndex+2, LEVELS.length));
   progress.best = Math.max(progress.best, runTotalScore);
   saveProgress();
+
+  var prevBest = bestTimes[currentLevelIndex];
+  var isNewBest = prevBest === undefined || levelTimer < prevBest;
+  if (isNewBest){ bestTimes[currentLevelIndex] = levelTimer; saveBestTimes(); }
+  document.getElementById('levelcomplete-time').textContent = formatTime(levelTimer);
+  var bestLine = document.getElementById('levelcomplete-best');
+  bestLine.textContent = isNewBest ? 'New best time!' : ('Best: ' + formatTime(bestTimes[currentLevelIndex]));
+  bestLine.classList.toggle('new-best', isNewBest);
+
   renderStars('levelcomplete-stars', stars);
   document.getElementById('levelcomplete-score').textContent = score;
   document.getElementById('levelcomplete-collected').textContent = collected+'/'+totalCollectibles;
@@ -2284,6 +2458,8 @@ function loop(ts){
   updateWeather(dt, step);
 
   if (gameState==='playing'){
+    levelTimer += dt;
+    updateTimerDisplay();
     updateMovers(dt, step);
     updatePlayer(dt, step);
     updateEnemies(dt, step);
