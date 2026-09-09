@@ -360,8 +360,8 @@ var LEVELS = [
     {type:'grump',x:300,y:GROUND_Y-46,w:30,h:46,minX:220,maxX:560,vx:1.3},
     {type:'grump',x:1650,y:330-46,w:30,h:46,minX:1640,maxX:1750,vx:1.1},
     {type:'grump',x:2000,y:GROUND_Y-46,w:30,h:46,minX:1960,maxX:2560,vx:1.5},
-    {type:'bouncer',x:2350,y:230-34,w:34,h:34},
-    {type:'bouncer',x:3060,y:GROUND_Y-34,w:34,h:34}
+    {type:'grump',x:2900,y:GROUND_Y-46,w:30,h:46,minX:2760,maxX:3100,vx:1.2},
+    {type:'bouncer',x:3390,y:GROUND_Y-46,w:30,h:46,minY:GROUND_Y-150,maxY:GROUND_Y-46,vy:1.3,isGoalie:true}
   ],
   goal:{x:3430,y:GROUND_Y-150,w:16,h:150}
 },
@@ -387,7 +387,8 @@ var LEVELS = [
   enemies:[
     {type:'grump',x:250,y:GROUND_Y-46,w:30,h:46,minX:80,maxX:440,vx:1.3},
     {type:'grump',x:1550,y:GROUND_Y-46,w:30,h:46,minX:1470,maxX:1850,vx:1.4},
-    {type:'bouncer',x:1830,y:150-34,w:34,h:34}
+    {type:'grump',x:1830,y:150-46,w:30,h:46,minX:1832,maxX:1938,vx:1},
+    {type:'bouncer',x:2610,y:GROUND_Y-46,w:30,h:46,minY:GROUND_Y-150,maxY:GROUND_Y-46,vy:1.3,isGoalie:true}
   ],
   goal:{x:2650,y:GROUND_Y-150,w:16,h:150}
 },
@@ -416,8 +417,8 @@ var LEVELS = [
   ],
   enemies:[
     {type:'grump',x:2170,y:254,w:30,h:46,minX:2160,maxX:2270,vx:1.2},
-    {type:'bouncer',x:900,y:266,w:34,h:34},
-    {type:'bouncer',x:1860,y:266,w:34,h:34}
+    {type:'grump',x:900,y:254,w:30,h:46,minX:882,maxX:948,vx:0.9},
+    {type:'bouncer',x:2520,y:GROUND_Y-46,w:30,h:46,minY:GROUND_Y-150,maxY:GROUND_Y-46,vy:1.3,isGoalie:true}
   ],
   goal:{x:2560,y:GROUND_Y-150,w:16,h:150}
 }
@@ -539,6 +540,7 @@ var keys = {left:false,right:false,jump:false,kick:false};
 var jumpPressedEdge = false, kickPressedEdge = false;
 
 var balls = [];
+var enemyBalls = [];
 var particles = [];
 var confetti = [];
 var camX = 0;
@@ -574,7 +576,16 @@ function loadLevel(idx){
   crates = clone(def.crates).map(function(c){ c.alive = true; c.y += groundOffset; return c; });
   enemies = clone(def.enemies).map(function(e){
     e.alive = true; e.dir = 1; e.y += groundOffset;
-    if (e.type === 'bouncer'){ e.baseY = e.y; e.t = Math.random()*10; }
+    if (e.type === 'bouncer'){
+      e.baseY = e.y; e.t = Math.random()*10; e.dirY = 1;
+      if (e.minY !== undefined){
+        e.minY += groundOffset; e.maxY += groundOffset;
+        e.y = e.maxY; e.baseY = e.y;
+        e.jumping = false; e.jumpPhase = 0;
+        e.jumpCooldown = 900 + Math.random()*1400;
+      }
+    }
+    if (e.type === 'grump'){ e.shootTimer = 2000 + Math.random()*2000; e.kickTimer = 0; }
     return e;
   });
   collectibles = [];
@@ -589,7 +600,7 @@ function loadLevel(idx){
   player.lastKick=-9999;
   respawn.x = def.playerStart.x; respawn.y = def.playerStart.y + groundOffset;
   lives = 3; score = 0; elapsed = 0;
-  balls = []; particles = [];
+  balls = []; enemyBalls = []; particles = [];
   camX = 0;
   updateHearts(); updateScore();
   document.getElementById('level-label').textContent = 'Level ' + (idx+1);
@@ -683,6 +694,7 @@ function playTone(freq, duration, type, vol, delay, freqEnd){
 var SFX = {
   jump: function(){ playTone(420,0.14,'square',0.16,0,760); },
   kick: function(){ playTone(160,0.09,'sawtooth',0.2,0,50); playTone(1100,0.03,'square',0.08,0.02); },
+  enemyKick: function(){ playTone(110,0.1,'sawtooth',0.18,0,40); playTone(700,0.04,'square',0.07,0.02); },
   stomp: function(){ playTone(200,0.11,'square',0.22,0,70); },
   pop: function(){ playTone(500,0.09,'square',0.18,0,900); },
   coin: function(){ playTone(880,0.08,'square',0.16,0); playTone(1320,0.1,'square',0.14,0.06); },
@@ -900,6 +912,8 @@ function updatePlayer(dt, step){
   var preVy = player.vy;
 
   moveAndCollide(player, player.vx*step, 0);
+  if (player.x < 0){ player.x = 0; if (player.vx < 0) player.vx = 0; }
+  if (player.x > WORLD_WIDTH - player.w){ player.x = WORLD_WIDTH - player.w; if (player.vx > 0) player.vx = 0; }
   moveAndCollide(player, 0, player.vy*step);
 
   if (!enteringGrounded && player.grounded && preVy > 7){
@@ -954,10 +968,6 @@ function updatePlayer(dt, step){
   if (player.grounded && player.x > respawn.x + 20){
     respawn.x = player.x; respawn.y = player.y - 2;
   }
-
-  if (rectsOverlap(player, goal)){
-    triggerLevelComplete();
-  }
 }
 
 function updateEnemies(dt, step){
@@ -966,9 +976,47 @@ function updateEnemies(dt, step){
     if (e.type === 'grump'){
       e.x += e.vx*e.dir*step;
       if (e.x < e.minX || e.x+e.w > e.maxX) e.dir *= -1;
+
+      e.shootTimer -= dt;
+      if (e.kickTimer > 0) e.kickTimer -= dt;
+      var onScreen = e.x > camX-40 && e.x < camX+W+40;
+      if (e.shootTimer <= 0 && onScreen && gameState==='playing'){
+        e.shootTimer = 3200 + Math.random()*2400;
+        var kickDir = player.x < e.x ? -1 : 1;
+        e.kickTimer = 260; e.kickDir = kickDir;
+        enemyBalls.push({
+          x: e.x + (kickDir>0 ? e.w : -14), y: e.y + e.h*0.55,
+          w:14, h:14, vx: kickDir*5.5, dir:kickDir, life:3000
+        });
+        SFX.enemyKick();
+        spawnParticles(e.x+e.w/2, e.y+e.h*0.6, '#E8493B', 4, 3);
+      }
     } else if (e.type === 'bouncer'){
-      e.t += step*0.09;
-      e.y = e.baseY - Math.abs(Math.sin(e.t))*22;
+      if (e.minY !== undefined){
+        // Idles at ground level on a cooldown, then jumps once with
+        // parabolic easing (fast at takeoff/landing, hanging briefly at
+        // the peak) instead of bouncing non-stop.
+        if (!e.jumping){
+          e.y = e.maxY; e.baseY = e.y; e.dirY = 1;
+          e.jumpCooldown -= dt;
+          if (e.jumpCooldown <= 0){ e.jumping = true; e.jumpPhase = 0; }
+        } else {
+          e.jumpPhase += step*e.vy*0.018;
+          if (e.jumpPhase >= 1){
+            e.jumping = false;
+            e.jumpCooldown = 1200 + Math.random()*1800;
+            e.y = e.maxY; e.baseY = e.y; e.dirY = 1;
+          } else {
+            var jt = 4*e.jumpPhase*(1-e.jumpPhase);
+            e.y = e.maxY - jt*(e.maxY - e.minY);
+            e.dirY = e.jumpPhase < 0.5 ? -1 : 1;
+            e.baseY = e.y;
+          }
+        }
+      } else {
+        e.t += step*0.09;
+        e.y = e.baseY - Math.abs(Math.sin(e.t))*22;
+      }
     }
     var eb = {x:e.x,y:e.y,w:e.w,h:e.h};
     if (rectsOverlap(player, eb) && player.hurtTimer<=0){
@@ -982,14 +1030,33 @@ function updateEnemies(dt, step){
     }
   });
 
+  var terrainForBalls = [];
+  ground.forEach(function(g){ terrainForBalls.push({x:g.x0, y:GROUND_Y, w:g.x1-g.x0, h:H-GROUND_Y}); });
+  platforms.forEach(function(p){ terrainForBalls.push(p); });
+  movingPlatforms.forEach(function(p){ terrainForBalls.push(p); });
+  springPads.forEach(function(p){ terrainForBalls.push(p); });
   balls.forEach(function(b){
     b.life -= dt;
     b.x += b.vx*step;
     var bb = {x:b.x,y:b.y,w:b.w,h:b.h};
+    for (var pbi=0; pbi<terrainForBalls.length; pbi++){
+      if (rectsOverlap(bb, terrainForBalls[pbi])){
+        b.life = 0;
+        spawnParticles(b.x+7, b.y+7, '#fff', 5, 3);
+        break;
+      }
+    }
+    if (b.life <= 0) return;
     enemies.forEach(function(e){
       if (e.alive && rectsOverlap(bb, {x:e.x,y:e.y,w:e.w,h:e.h})){
-        killEnemy(e, e.x+e.w/2, e.y, false);
-        b.life = 0;
+        if (e.isGoalie){
+          b.life = 0;
+          spawnParticles(b.x+7,b.y+7,'#9BE85E',8,4);
+          SFX.pop();
+        } else {
+          killEnemy(e, e.x+e.w/2, e.y, false);
+          b.life = 0;
+        }
       }
     });
     crates.forEach(function(c){
@@ -1000,8 +1067,40 @@ function updateEnemies(dt, step){
         b.life = 0;
       }
     });
+    if (b.life > 0 && rectsOverlap(bb, goal)){
+      b.life = 0;
+      triggerLevelComplete();
+    }
+    enemyBalls.forEach(function(eb){
+      if (eb.life > 0 && b.life > 0 && rectsOverlap(bb, {x:eb.x,y:eb.y,w:eb.w,h:eb.h})){
+        eb.life = 0; b.life = 0;
+        spawnParticles((b.x+eb.x)/2+7, (b.y+eb.y)/2+7, '#fff', 10, 5);
+        SFX.pop();
+      }
+    });
   });
   balls = balls.filter(function(b){ return b.life > 0 && b.x > camX-40 && b.x < camX+W+40; });
+
+  var solidsForBalls = allSolids();
+  enemyBalls.forEach(function(b){
+    if (b.life <= 0) return;
+    b.life -= dt;
+    b.x += b.vx*step;
+    var bbox = {x:b.x,y:b.y,w:b.w,h:b.h};
+    if (player.hurtTimer<=0 && rectsOverlap(player, bbox)){
+      damagePlayer(b.x);
+      b.life = 0;
+      return;
+    }
+    for (var si=0; si<solidsForBalls.length; si++){
+      if (rectsOverlap(bbox, solidsForBalls[si])){
+        b.life = 0;
+        spawnParticles(b.x+7, b.y+7, '#fff', 5, 3);
+        break;
+      }
+    }
+  });
+  enemyBalls = enemyBalls.filter(function(b){ return b.life > 0 && b.x > camX-40 && b.x < camX+W+40; });
 }
 
 function updateCollectibles(dt, step){
@@ -1355,6 +1454,21 @@ function drawGoal(){
   ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth=1;
   for (var i=6;i<goal.w;i+=6) { ctx.beginPath(); ctx.moveTo(x+i,goal.y); ctx.lineTo(x+i-16,goal.y+goal.h); ctx.stroke(); }
   for (var j=6;j<goal.h;j+=8) { ctx.beginPath(); ctx.moveTo(x,goal.y+j); ctx.lineTo(x+goal.w,goal.y+j); ctx.stroke(); }
+
+  var signX = x + goal.w/2;
+  var signY = goal.y - 26;
+  ctx.font = "bold 15px 'Baloo 2', sans-serif";
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  var label = 'Kick a goal to win!';
+  var tw = ctx.measureText(label).width;
+  ctx.fillStyle = 'rgba(27,42,58,0.72)';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(signX-tw/2-12, signY-14, tw+24, 28, 14);
+  else ctx.rect(signX-tw/2-12, signY-14, tw+24, 28);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#FFC531';
+  ctx.fillText(label, signX, signY+1);
 }
 
 function drawSoccerBall(r, spin){
@@ -1398,6 +1512,17 @@ function drawBalls(){
   });
 }
 
+function drawEnemyBalls(){
+  enemyBalls.forEach(function(b){
+    var x = b.x - camX + b.w/2, y = b.y + b.h/2;
+    ctx.save(); ctx.translate(x,y);
+    drawSoccerBall(7.5, elapsed*0.02*b.dir);
+    ctx.strokeStyle = 'rgba(200,40,30,0.75)'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(0,0,8.3,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  });
+}
+
 function drawEnemy(e){
   var x = e.x - camX;
   if (x+e.w < -20 || x > W+20) return;
@@ -1415,12 +1540,30 @@ function drawEnemy(e){
     var skinGradE = '#E3A579';
     var legGradE = '#22262E';
 
+    var kickingE = e.kickTimer > 0;
+    var kickAngleE = kickingE ? -1.3*Math.sin((1-e.kickTimer/260)*Math.PI) : 0;
+
     ctx.fillStyle = legGradE;
     ctx.fillRect(-6, 9-strideL, 5, 12+strideL);
-    ctx.fillRect(1, 9-strideR, 5, 12+strideR);
     ctx.fillStyle = '#fff';
     ctx.fillRect(-6, 9+12+strideL-4, 5, 4);
-    ctx.fillRect(1, 9+12+strideR-4, 5, 4);
+
+    if (kickingE){
+      ctx.save();
+      ctx.translate(3, 9);
+      ctx.rotate(kickAngleE);
+      ctx.fillStyle = legGradE;
+      ctx.fillRect(-2.5, 0, 5, 12);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(-2.5, 8, 5, 4);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = legGradE;
+      ctx.fillRect(1, 9-strideR, 5, 12+strideR);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(1, 9+12+strideR-4, 5, 4);
+    }
+
     ctx.fillStyle = legGradE;
     ctx.fillRect(-6, 4.5, 12, 5);
 
@@ -1463,29 +1606,67 @@ function drawEnemy(e){
     ctx.beginPath(); ctx.arc(0,-17.8,2.5,Math.PI,Math.PI*2); ctx.stroke();
     ctx.restore();
   } else {
-    var lift = e.baseY - e.y;
-    var squat = lift/22;
+    var rising = e.dirY < 0;
     ctx.fillStyle = 'rgba(20,10,10,0.22)';
-    ctx.beginPath(); ctx.ellipse(cx, e.baseY+e.h/2+2, (e.w/2)*(1+squat*0.4), 4, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx, e.baseY+e.h/2+2, e.w/2*0.85, 3.5, 0, 0, Math.PI*2); ctx.fill();
     ctx.save();
     ctx.translate(cx, e.baseY+e.h/2);
-    ctx.scale(1+squat*0.08, 1-squat*0.22);
-    var oy = -lift;
-    ctx.save();
-    ctx.translate(0, oy);
-    drawSoccerBall(e.w/2, e.x*0.06);
-    ctx.strokeStyle='#2b2b2b'; ctx.lineWidth=1.5; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(-e.w*0.32,-e.h*0.18); ctx.lineTo(-e.w*0.1,-e.h*0.05); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(e.w*0.32,-e.h*0.18); ctx.lineTo(e.w*0.1,-e.h*0.05); ctx.stroke();
-    ctx.fillStyle='#fff';
-    ctx.beginPath(); ctx.arc(-e.w*0.16,0,2.6,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(e.w*0.16,0,2.6,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#2b2b2b';
-    ctx.beginPath(); ctx.arc(-e.w*0.12,0.4,1.3,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(e.w*0.2,0.4,1.3,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle='#2b2b2b'; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.arc(0,e.h*0.18,3.2,0.15,Math.PI-0.15); ctx.stroke();
+
+    var skinGradK = '#E3A579';
+    var shortsGradK = '#1B2735';
+    var jerseyGradK = ctx.createLinearGradient(-7.5,-16,7.5,3);
+    jerseyGradK.addColorStop(0,'#9BE85E'); jerseyGradK.addColorStop(1,'#4C9E2E');
+
+    var kneeBend = rising ? 2 : 6;
+    ctx.fillStyle = shortsGradK;
+    ctx.fillRect(-7, 6-kneeBend*0.3, 5, 15+kneeBend*0.3);
+    ctx.fillRect(2, 6-kneeBend*0.3, 5, 15+kneeBend*0.3);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-7, 6-kneeBend*0.3+15-4, 5, 4);
+    ctx.fillRect(2, 6-kneeBend*0.3+15-4, 5, 4);
+    ctx.fillStyle = shortsGradK;
+    ctx.fillRect(-7, 3, 14, 5);
+
+    var armAngle = rising ? -2.5 : -1.9;
+    ctx.fillStyle = jerseyGradK;
+    ctx.save(); ctx.translate(-7.5,-12); ctx.rotate(armAngle); ctx.fillRect(-2.3,0,4.6,10); ctx.restore();
+    ctx.fillStyle = '#2b2b2b';
+    ctx.save(); ctx.translate(-7.5,-12); ctx.rotate(armAngle); ctx.translate(0,10); ctx.beginPath(); ctx.arc(0,1.5,3.6,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(-2,0); ctx.lineTo(-2,-2.5); ctx.moveTo(0,-0.5); ctx.lineTo(0,-3); ctx.moveTo(2,0); ctx.lineTo(2,-2.5); ctx.stroke();
     ctx.restore();
+
+    ctx.fillStyle = jerseyGradK;
+    ctx.beginPath();
+    ctx.moveTo(-7,-11.5); ctx.quadraticCurveTo(-7,-15,-4,-15); ctx.lineTo(4,-15);
+    ctx.quadraticCurveTo(7,-15,7,-11.5); ctx.quadraticCurveTo(6.5,-4,6,3);
+    ctx.lineTo(-6,3); ctx.quadraticCurveTo(-6.5,-4,-7,-11.5); ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(-7,-6); ctx.lineTo(7,-6); ctx.stroke();
+
+    var armAngle2 = rising ? 2.5 : 1.9;
+    ctx.fillStyle = jerseyGradK;
+    ctx.save(); ctx.translate(7.5,-12); ctx.rotate(armAngle2); ctx.fillRect(-2.3,0,4.6,10); ctx.restore();
+    ctx.fillStyle = '#2b2b2b';
+    ctx.save(); ctx.translate(7.5,-12); ctx.rotate(armAngle2); ctx.translate(0,10); ctx.beginPath(); ctx.arc(0,1.5,3.6,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(-2,0); ctx.lineTo(-2,-2.5); ctx.moveTo(0,-0.5); ctx.lineTo(0,-3); ctx.moveTo(2,0); ctx.lineTo(2,-2.5); ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = skinGradK;
+    ctx.beginPath(); ctx.ellipse(0,-19,7.6,8.2,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1A1A1A';
+    ctx.beginPath(); ctx.arc(0,-21.5,7.8,Math.PI,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-7.6,-20); ctx.quadraticCurveTo(-8.4,-15,-6.8,-14); ctx.quadraticCurveTo(-7.3,-17.5,-4.4,-19.5); ctx.closePath(); ctx.fill();
+
+    ctx.strokeStyle='#1A1A1A'; ctx.lineWidth=1.4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-5.5,-20.3); ctx.lineTo(-1.3,-19); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(5.5,-20.3); ctx.lineTo(1.3,-19); ctx.stroke();
+    ctx.fillStyle='#2b2b2b';
+    ctx.beginPath(); ctx.arc(-2.8,-17.8,1.1,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(2.8,-17.8,1.1,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#8a3a28'; ctx.lineWidth=1.3; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-2,-14.3); ctx.lineTo(2,-14.3); ctx.stroke();
+
     ctx.restore();
   }
 }
@@ -1775,6 +1956,7 @@ function render(){
   drawCollectibles();
   enemies.forEach(function(e){ if (e.alive) drawEnemy(e); });
   drawBalls();
+  drawEnemyBalls();
   drawLeo();
   drawParticles();
   if (gameState==='levelcomplete' || gameState==='champion') drawConfetti();
