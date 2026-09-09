@@ -159,6 +159,18 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
 .level-btn:disabled{pointer-events:none;}
 .level-names{font-size:11px;color:#fff;font-weight:700;margin-top:-6px;opacity:0.85;}
 
+.costume-select{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+.costume-btn{
+  width:46px;height:46px;border-radius:50%;border:3px solid rgba(255,255,255,0.55);
+  cursor:pointer;position:relative;box-shadow:0 4px 0 rgba(0,0,0,0.25);
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+}
+.costume-btn:active{transform:translateY(2px);box-shadow:0 2px 0 rgba(0,0,0,0.25);}
+.costume-btn.selected{border-color:#FFC531;box-shadow:0 4px 0 rgba(0,0,0,0.25),0 0 0 3px rgba(255,197,49,0.5);}
+.costume-btn.locked{cursor:not-allowed;filter:grayscale(0.7);opacity:0.6;}
+.costume-btn:disabled{pointer-events:none;}
+.costume-names{font-size:10px;color:#fff;font-weight:700;margin-top:-4px;opacity:0.85;text-align:center;}
+
 .star-row{display:flex;gap:4px;justify-content:center;margin:4px 0;}
 .star{width:26px;height:26px;}
 
@@ -241,6 +253,8 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
         </div>
       </div>
       <div class="level-select" id="level-select"></div>
+      <p class="level-names" style="margin-top:10px;opacity:0.7;">Leo's kit</p>
+      <div class="costume-select" id="costume-select"></div>
     </div>
 
     <div class="screen" id="screen-gameover" hidden>
@@ -261,6 +275,7 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
         <p class="score-line">Time: <span id="levelcomplete-time">0:00</span></p>
         <p class="score-line" id="levelcomplete-best" style="margin:0;">Best: 0:00</p>
       </div>
+      <p class="score-line" id="levelcomplete-unlock" style="color:#FFC531;" hidden></p>
       <div class="btn-row">
         <button class="play" id="btn-next-level">Next level</button>
         <button class="play secondary" id="btn-lc-levels">Level select</button>
@@ -271,6 +286,7 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
       <p class="logo">CHAMPION!</p>
       <p class="tagline">Leo defeated Captain Rex and won the whole tournament!</p>
       <div class="panel"><p class="score-line">Total score: <span id="champion-score">0</span></p></div>
+      <p class="score-line" id="champion-unlock" style="color:#FFC531;" hidden>&#127942; New kit unlocked: Captain's Kit!</p>
       <button class="play" id="btn-champion-again">Play again</button>
     </div>
 
@@ -558,16 +574,76 @@ function loadProgress(){
   try{
     var u = parseInt(localStorage.getItem('superleo_unlocked'),10);
     var b = parseInt(localStorage.getItem('superleo_best'),10);
-    return { unlocked: isNaN(u)?1:Math.max(1,Math.min(u,LEVELS.length)), best: isNaN(b)?0:b };
-  }catch(e){ return {unlocked:1,best:0}; }
+    var costume = localStorage.getItem('superleo_costume') || 'home';
+    var championed = localStorage.getItem('superleo_championed') === '1';
+    return { unlocked: isNaN(u)?1:Math.max(1,Math.min(u,LEVELS.length)), best: isNaN(b)?0:b, costume: costume, championed: championed };
+  }catch(e){ return {unlocked:1,best:0,costume:'home',championed:false}; }
 }
 function saveProgress(){
   try{
     localStorage.setItem('superleo_unlocked', String(progress.unlocked));
     localStorage.setItem('superleo_best', String(progress.best));
+    localStorage.setItem('superleo_costume', progress.costume);
+    localStorage.setItem('superleo_championed', progress.championed ? '1' : '0');
   }catch(e){}
 }
 var progress = loadProgress();
+
+// ---------- Costumes ----------
+// Leo's unlockable kits: cosmetic only, unlocked by clearing levels (and one
+// prestige kit for beating the whole game), stored/selected independently of
+// the run in progress.
+var COSTUMES = [
+  { id:'home', name:'Home Kit', jerseyTop:'#FFFFFF', jerseyBot:'#DCE1E6', trim:'#9AA3AB', shorts:'#1B2735', unlockLevel:1 },
+  { id:'sunny', name:'Sunny Green', jerseyTop:'#8BE87F', jerseyBot:'#3FAE3B', trim:'#1F6B22', shorts:'#173321', unlockLevel:2 },
+  { id:'cave', name:'Cave Violet', jerseyTop:'#B18BFF', jerseyBot:'#6B3FD6', trim:'#3B1E80', shorts:'#241636', unlockLevel:3 },
+  { id:'lightning', name:'Lightning Kit', jerseyTop:'#FF4433', jerseyBot:'#B8231C', trim:'#FFD500', shorts:'#181818', unlockLevel:4, bolt:true },
+  { id:'champion', name:"Captain's Kit", jerseyTop:'#3A3E44', jerseyBot:'#15171A', trim:'#FFC531', shorts:'#111315', unlockChampion:true }
+];
+function isCostumeUnlocked(c){
+  return c.unlockChampion ? !!progress.championed : progress.unlocked >= c.unlockLevel;
+}
+function resolveCostume(id){
+  var found = null;
+  for (var i=0;i<COSTUMES.length;i++){ if (COSTUMES[i].id===id) found = COSTUMES[i]; }
+  if (!found || !isCostumeUnlocked(found)) found = COSTUMES[0];
+  return found;
+}
+var currentCostume = resolveCostume(progress.costume);
+function renderCostumeSelect(){
+  var container = document.getElementById('costume-select');
+  if (!container) return;
+  container.innerHTML = '';
+  COSTUMES.forEach(function(c){
+    var unlocked = isCostumeUnlocked(c);
+    var btn = document.createElement('button');
+    btn.className = 'costume-btn' + (unlocked?'':' locked') + (currentCostume.id===c.id?' selected':'');
+    btn.style.background = 'linear-gradient(160deg,' + c.jerseyTop + ',' + c.jerseyBot + ')';
+    btn.setAttribute('aria-label', unlocked ? ('Wear '+c.name) : (c.name+' locked'));
+    if (!unlocked){
+      btn.disabled = true;
+      btn.textContent = '\u{1F512}';
+    } else {
+      btn.addEventListener('click', function(){
+        SFX.click();
+        progress.costume = c.id;
+        currentCostume = c;
+        saveProgress();
+        renderCostumeSelect();
+      });
+    }
+    container.appendChild(btn);
+  });
+  var label = document.getElementById('costume-label');
+  if (!label){
+    label = document.createElement('div');
+    label.className = 'level-names';
+    label.id = 'costume-label';
+    label.style.marginTop = '2px';
+    container.parentNode.insertBefore(label, container.nextSibling);
+  }
+  label.textContent = currentCostume.name;
+}
 
 function loadBestTimes(){
   try{
@@ -1939,31 +2015,83 @@ function drawPowerups(){
     var x = p.x - camX, y = p.y + Math.sin(p.bob)*4;
     if (x < -20 || x > W+20) return;
     var cols = POWERUP_COLORS[p.type] || POWERUP_COLORS.speed;
+    var spin = p.bob*1.4;
     ctx.save();
     ctx.translate(x,y);
-    var glow = ctx.createRadialGradient(0,0,2,0,0,15);
-    glow.addColorStop(0, 'rgba(255,255,255,0.55)'); glow.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0,0,15,0,Math.PI*2); ctx.fill();
-    var bg = ctx.createRadialGradient(-3,-4,1,0,0,11);
-    bg.addColorStop(0, cols[0]); bg.addColorStop(1, cols[1]);
+
+    // Soft outer glow, plus a faint ground-facing drop shadow so the orb
+    // reads as a solid floating object rather than a flat painted disc.
+    var glow = ctx.createRadialGradient(0,0,2,0,0,16);
+    glow.addColorStop(0, 'rgba(255,255,255,0.5)'); glow.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0,0,16,0,Math.PI*2); ctx.fill();
+
+    // A faceted gem-like casing behind the glyph, slowly rotating, to give
+    // the pickup real depth instead of a flat tinted circle.
+    ctx.save();
+    ctx.rotate(spin);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 0.8;
+    for (var f=0; f<6; f++){
+      var a1 = f*(Math.PI/3), a2 = a1+Math.PI/3;
+      ctx.beginPath();
+      ctx.moveTo(0,0);
+      ctx.lineTo(Math.cos(a1)*10.5, Math.sin(a1)*10.5);
+      ctx.lineTo(Math.cos(a2)*10.5, Math.sin(a2)*10.5);
+      ctx.closePath(); ctx.stroke();
+    }
+    ctx.restore();
+
+    var bg = ctx.createRadialGradient(-3.5,-4.5,0.5,0,0,11);
+    bg.addColorStop(0, '#ffffff'); bg.addColorStop(0.35, cols[0]); bg.addColorStop(1, cols[1]);
     ctx.beginPath(); ctx.arc(0,0,11,0,Math.PI*2); ctx.fillStyle = bg; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.4; ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
+    // Darker rim shading along the lower-right edge for a rounded, lit-
+    // from-one-side sphere look instead of a flat-shaded disc.
+    var rim = ctx.createRadialGradient(3,4,4,0,0,11);
+    rim.addColorStop(0, cols[1]+'aa'); rim.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(0,0,11,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2; ctx.stroke();
+    // Small glossy specular highlight.
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.beginPath(); ctx.ellipse(-3.6,-4.4,2,1.2,-0.6,0,Math.PI*2); ctx.fill();
+
+    var glyphGrad = ctx.createLinearGradient(0,-7,0,7);
+    glyphGrad.addColorStop(0,'#fff'); glyphGrad.addColorStop(1,'#F0F0F0');
+    ctx.fillStyle = glyphGrad;
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.9;
     if (p.type === 'speed'){
       ctx.beginPath();
       ctx.moveTo(1,-6); ctx.lineTo(-4,1); ctx.lineTo(-0.5,1); ctx.lineTo(-2,6); ctx.lineTo(4,-1); ctx.lineTo(0.5,-1);
       ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.beginPath(); ctx.moveTo(0.4,-5); ctx.lineTo(-2.6,0.3); ctx.lineTo(-0.6,0.3); ctx.closePath(); ctx.fill();
     } else if (p.type === 'shield'){
       ctx.beginPath();
       ctx.moveTo(0,-6); ctx.quadraticCurveTo(5,-4,5,-1); ctx.quadraticCurveTo(5,4,0,6.5);
       ctx.quadraticCurveTo(-5,4,-5,-1); ctx.quadraticCurveTo(-5,-4,0,-6);
       ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 0.7;
+      ctx.beginPath(); ctx.moveTo(0,-5.2); ctx.lineTo(0,5.4); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.beginPath(); ctx.moveTo(0,-5.5); ctx.quadraticCurveTo(-3,-4,-3,-1.2); ctx.quadraticCurveTo(-1.5,-1,0,-1.5); ctx.closePath(); ctx.fill();
     } else {
+      // Two-tone flame: a darker outer tongue with a brighter inner core.
+      ctx.fillStyle = cols[0];
       ctx.beginPath();
-      ctx.moveTo(0,-6); ctx.quadraticCurveTo(4,-2,2,2); ctx.quadraticCurveTo(4,1,3,4);
-      ctx.quadraticCurveTo(0,7,-3,4); ctx.quadraticCurveTo(-4,0,-1,-1); ctx.quadraticCurveTo(-2,-4,0,-6);
+      ctx.moveTo(0,-6.5); ctx.quadraticCurveTo(4.2,-2,2.2,2.2); ctx.quadraticCurveTo(4.2,1,3.2,4.4);
+      ctx.quadraticCurveTo(0,7.5,-3.2,4.4); ctx.quadraticCurveTo(-4.2,0,-1,-1); ctx.quadraticCurveTo(-2.2,-4.2,0,-6.5);
       ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#FFE8A3';
+      ctx.beginPath();
+      ctx.moveTo(0,-3.4); ctx.quadraticCurveTo(2,-0.6,1,1.6); ctx.quadraticCurveTo(0,3.4,-1,1.6);
+      ctx.quadraticCurveTo(-1.6,0,0,-3.4);
+      ctx.closePath(); ctx.fill();
+    }
+
+    // A couple of orbiting sparkle motes for a bit of magic shimmer.
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    for (var s=0; s<2; s++){
+      var sa = spin*1.6 + s*Math.PI;
+      var sr = 13.5;
+      ctx.beginPath(); ctx.arc(Math.cos(sa)*sr, Math.sin(sa)*sr*0.7, 1.1, 0, Math.PI*2); ctx.fill();
     }
     ctx.restore();
   });
@@ -2270,10 +2398,40 @@ function drawPlayerAura(){
   ctx.save();
   ctx.globalAlpha = pulse;
   if (player.activePowerup === 'shield'){
-    ctx.strokeStyle = cols[1]; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(cx, cy, player.h*0.62, 0, Math.PI*2); ctx.stroke();
-    ctx.fillStyle = 'rgba(142,203,255,0.14)';
-    ctx.beginPath(); ctx.arc(cx, cy, player.h*0.62, 0, Math.PI*2); ctx.fill();
+    var r = player.h*0.62;
+    // A glassy energy bubble: soft glassy fill, a bright rim (thickest
+    // where the "light" hits), rotating hex-panel seams, and a couple of
+    // slow-drifting glints, instead of one flat stroked ring.
+    var fill = ctx.createRadialGradient(cx-r*0.3,cy-r*0.35,1,cx,cy,r);
+    fill.addColorStop(0, 'rgba(200,230,255,0.22)');
+    fill.addColorStop(0.75, 'rgba(142,203,255,0.10)');
+    fill.addColorStop(1, 'rgba(142,203,255,0.28)');
+    ctx.fillStyle = fill;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1;
+    var facetSpin = elapsed*0.0006;
+    for (var hf=0; hf<6; hf++){
+      var ha = facetSpin + hf*(Math.PI/3);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx+Math.cos(ha)*r*1.4, cy+Math.sin(ha)*r*1.4);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = cols[1]; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(cx, cy, r-1.2, -Math.PI*0.75, -Math.PI*0.15); ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (var gl=0; gl<2; gl++){
+      var ga = elapsed*0.0011 + gl*Math.PI;
+      ctx.beginPath(); ctx.arc(cx+Math.cos(ga)*r*0.86, cy+Math.sin(ga)*r*0.86, 1.3, 0, Math.PI*2); ctx.fill();
+    }
   } else {
     var glow = ctx.createRadialGradient(cx,cy,4,cx,cy,player.h*0.75);
     glow.addColorStop(0, cols[0]+'aa'); glow.addColorStop(1, cols[0]+'00');
@@ -2353,7 +2511,7 @@ function drawLeo(){
   drawLimb(-8, -9, backArmAngle, 10, 4, armGrad, null);
 
   var jerseyGrad = ctx.createLinearGradient(-8,-15,8,5.5);
-  jerseyGrad.addColorStop(0,'#FFFFFF'); jerseyGrad.addColorStop(1,'#DCE1E6');
+  jerseyGrad.addColorStop(0,currentCostume.jerseyTop); jerseyGrad.addColorStop(1,currentCostume.jerseyBot);
   ctx.fillStyle = jerseyGrad;
   ctx.beginPath();
   ctx.moveTo(-8.5,-11.5);
@@ -2367,7 +2525,7 @@ function drawLeo(){
   ctx.quadraticCurveTo(-7.8,-4, -8.5,-11.5);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = '#c7ccd1'; ctx.lineWidth=1.2;
+  ctx.strokeStyle = currentCostume.trim; ctx.lineWidth=1.2;
   ctx.beginPath(); ctx.moveTo(4.2,-14); ctx.quadraticCurveTo(4.7,-4,4.2,4.8); ctx.stroke();
   ctx.fillStyle = 'rgba(20,20,25,0.12)';
   ctx.beginPath();
@@ -2382,7 +2540,16 @@ function drawLeo(){
   ctx.closePath(); ctx.fill();
   ctx.restore();
 
-  ctx.fillStyle = '#1B2735';
+  if (currentCostume.bolt){
+    // Lightning Kit gets a small chest emblem instead of a plain jersey.
+    ctx.fillStyle = currentCostume.trim;
+    ctx.beginPath();
+    ctx.moveTo(1.2,-11.5); ctx.lineTo(-1.6,-6.2); ctx.lineTo(0.2,-6.2);
+    ctx.lineTo(-1.2,-1.8); ctx.lineTo(2.4,-7.6); ctx.lineTo(0.5,-7.6);
+    ctx.closePath(); ctx.fill();
+  }
+
+  ctx.fillStyle = currentCostume.shorts;
   ctx.beginPath(); ctx.moveTo(-6,5.3); ctx.lineTo(6,5.3); ctx.lineTo(6,9.5); ctx.lineTo(-6,9.5); ctx.closePath();
   ctx.fill();
 
@@ -2556,6 +2723,7 @@ function showTitle(){
   document.getElementById('screen-title').hidden = false;
   document.getElementById('hud').hidden = true;
   renderLevelSelect();
+  renderCostumeSelect();
 }
 
 function startLevel(idx){
@@ -2585,9 +2753,19 @@ function triggerLevelComplete(){
   var stars = pct >= 0.85 ? 3 : (pct >= 0.5 ? 2 : 1);
   runTotalScore += score;
   runTotalStars += stars;
+  var prevUnlocked = progress.unlocked;
   progress.unlocked = Math.max(progress.unlocked, Math.min(currentLevelIndex+2, LEVELS.length));
   progress.best = Math.max(progress.best, runTotalScore);
   saveProgress();
+
+  var newCostume = COSTUMES.filter(function(c){
+    return !c.unlockChampion && c.unlockLevel > prevUnlocked && c.unlockLevel <= progress.unlocked;
+  })[0];
+  var costumeUnlockNote = document.getElementById('levelcomplete-unlock');
+  if (costumeUnlockNote){
+    costumeUnlockNote.hidden = !newCostume;
+    if (newCostume) costumeUnlockNote.textContent = '\u{1F3C6} New kit unlocked: ' + newCostume.name + '!';
+  }
 
   var prevBest = bestTimes[currentLevelIndex];
   var isNewBest = prevBest === undefined || levelTimer < prevBest;
@@ -2611,7 +2789,12 @@ function triggerChampion(){
   gameState = 'champion';
   SFX.champion();
   triggerConfetti(70);
+  var newlyChampioned = !progress.championed;
+  progress.championed = true;
+  saveProgress();
   document.getElementById('champion-score').textContent = runTotalScore;
+  var unlockNote = document.getElementById('champion-unlock');
+  if (unlockNote) unlockNote.hidden = !newlyChampioned;
   hideAllScreens();
   document.getElementById('screen-champion').hidden = false;
   document.getElementById('hud').hidden = true;
