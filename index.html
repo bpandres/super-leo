@@ -219,6 +219,7 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
       <div class="hud-group">
         <div class="hud-pill"><span class="ball-icon" aria-hidden="true"></span><span id="score">0</span></div>
         <div class="hud-pill" id="level-label">Level 1</div>
+        <div class="hud-pill" id="powerup-badge" hidden><span id="powerup-icon">⚡</span><span id="powerup-timer">0</span></div>
       </div>
       <div class="hud-group">
         <button class="hud-btn" id="btn-pause" aria-label="Pause game">&#10074;&#10074;</button>
@@ -315,6 +316,9 @@ var MOVE_ACCEL = 0.85;
 var MAX_SPEED = 4.6;
 var FRICTION = 0.82;
 var KICK_COOLDOWN = 380;
+var SPEED_BOOST_MS = 8000;
+var RAPID_KICK_MS = 8000;
+var SHIELD_MS = 20000;
 var HURT_INVULN = 1300;
 var COYOTE_MS = 110;
 var JUMP_BUFFER_MS = 120;
@@ -363,6 +367,11 @@ var LEVELS = [
     {type:'grump',x:2900,y:GROUND_Y-46,w:30,h:46,minX:2760,maxX:3100,vx:1.2},
     {type:'bouncer',x:3390,y:GROUND_Y-46,w:30,h:46,minY:GROUND_Y-150,maxY:GROUND_Y-46,vy:1.3,isGoalie:true}
   ],
+  powerups:[
+    {x:150,y:100,type:'shield'},
+    {x:1360,y:110,type:'speed'},
+    {x:3050,y:300,type:'rapid'}
+  ],
   goal:{x:3430,y:GROUND_Y-150,w:16,h:150}
 },
 {
@@ -389,6 +398,10 @@ var LEVELS = [
     {type:'grump',x:1550,y:GROUND_Y-46,w:30,h:46,minX:1470,maxX:1850,vx:1.4},
     {type:'grump',x:1830,y:150-46,w:30,h:46,minX:1832,maxX:1938,vx:1},
     {type:'bouncer',x:2610,y:GROUND_Y-46,w:30,h:46,minY:GROUND_Y-150,maxY:GROUND_Y-46,vy:1.3,isGoalie:true}
+  ],
+  powerups:[
+    {x:1850,y:90,type:'shield'},
+    {x:1720,y:240,type:'rapid'}
   ],
   goal:{x:2650,y:GROUND_Y-150,w:16,h:150}
 },
@@ -419,6 +432,10 @@ var LEVELS = [
     {type:'grump',x:2170,y:254,w:30,h:46,minX:2160,maxX:2270,vx:1.2},
     {type:'grump',x:900,y:254,w:30,h:46,minX:882,maxX:948,vx:0.9},
     {type:'bouncer',x:2520,y:GROUND_Y-46,w:30,h:46,minY:GROUND_Y-150,maxY:GROUND_Y-46,vy:1.3,isGoalie:true}
+  ],
+  powerups:[
+    {x:1250,y:10,type:'speed'},
+    {x:1700,y:95,type:'shield'}
   ],
   goal:{x:2560,y:GROUND_Y-150,w:16,h:150}
 }
@@ -517,6 +534,7 @@ var WORLD_WIDTH = 3500;
 var ground = [], platforms = [], movingPlatforms = [], springPads = [], spikes = [], crates = [];
 var enemies = [], collectibles = [], goal = {x:0,y:0,w:0,h:0};
 var totalCollectibles = 0;
+var powerups = [];
 var runTotalScore = 0, runTotalStars = 0;
 
 // ---------- Player ----------
@@ -532,7 +550,9 @@ var player = {
   jumpBufferTimer:0,
   squashTimer:0,
   squashStrength:0,
-  celebrating:false
+  celebrating:false,
+  activePowerup:null,
+  powerupTimer:0
 };
 var respawn = {x:60, y:GROUND_Y-46};
 var lives, score, gameState, elapsed;
@@ -593,11 +613,18 @@ function loadLevel(idx){
   totalCollectibles = collectibles.length;
   goal = clone(def.goal); goal.y += groundOffset;
 
+  powerups = clone(def.powerups || []).map(function(p){
+    p.y += groundOffset; p.taken = false; p.bob = Math.random()*Math.PI*2;
+    return p;
+  });
+
   player.x = def.playerStart.x; player.y = def.playerStart.y + groundOffset;
   player.vx=0; player.vy=0; player.facing=1;
   player.hurtTimer=0; player.kickTimer=0; player.coyoteTimer=0; player.jumpBufferTimer=0;
   player.squashTimer=0; player.celebrating=false; player.grounded=false;
   player.lastKick=-9999;
+  player.activePowerup = null; player.powerupTimer = 0;
+  updatePowerupBadge();
   respawn.x = def.playerStart.x; respawn.y = def.playerStart.y + groundOffset;
   lives = 3; score = 0; elapsed = 0;
   balls = []; enemyBalls = []; particles = [];
@@ -624,6 +651,15 @@ function updateHearts(){
   }
 }
 function updateScore(){ document.getElementById('score').textContent = score; }
+
+var POWERUP_ICONS = { speed:'⚡', shield:'🛡️', rapid:'🔥' };
+function updatePowerupBadge(){
+  var badge = document.getElementById('powerup-badge');
+  if (!player.activePowerup){ badge.hidden = true; return; }
+  badge.hidden = false;
+  document.getElementById('powerup-icon').textContent = POWERUP_ICONS[player.activePowerup] || '⚡';
+  document.getElementById('powerup-timer').textContent = Math.ceil(player.powerupTimer/1000);
+}
 
 function renderStars(containerId, count){
   var el = document.getElementById(containerId);
@@ -703,7 +739,8 @@ var SFX = {
   spring: function(){ playTone(220,0.26,'sine',0.22,0,940); },
   levelComplete: function(){ playTone(523,0.12,'square',0.18,0); playTone(659,0.12,'square',0.18,0.12); playTone(784,0.2,'square',0.18,0.24); },
   champion: function(){ playTone(523,0.12,'square',0.18,0); playTone(659,0.12,'square',0.18,0.12); playTone(784,0.14,'square',0.18,0.24); playTone(1046,0.28,'square',0.2,0.38); },
-  click: function(){ playTone(700,0.05,'square',0.1,0); }
+  click: function(){ playTone(700,0.05,'square',0.1,0); },
+  powerup: function(){ playTone(500,0.1,'square',0.18,0,1000); playTone(700,0.1,'square',0.16,0.1,1400); playTone(1000,0.14,'square',0.16,0.2); }
 };
 
 // ---------- Input ----------
@@ -841,6 +878,14 @@ function spawnParticles(x,y,color,n,spread){
 
 function damagePlayer(fromX){
   if (player.hurtTimer > 0) return;
+  if (player.activePowerup === 'shield'){
+    player.activePowerup = null; player.powerupTimer = 0;
+    updatePowerupBadge();
+    player.hurtTimer = 500;
+    SFX.pop(); triggerShake(5,180);
+    spawnParticles(player.x+player.w/2, player.y+player.h/2, '#5AB0FF', 12, 5);
+    return;
+  }
   lives -= 1;
   player.hurtTimer = HURT_INVULN;
   player.vx = (player.x < fromX ? -1 : 1) * 5;
@@ -873,12 +918,16 @@ function updatePlayer(dt, step){
   if (player.hurtTimer > 0) player.hurtTimer -= dt;
   if (player.squashTimer > 0) player.squashTimer = Math.max(0, player.squashTimer-dt);
 
+  var speedBoosted = player.activePowerup === 'speed';
+  var moveAccelEff = speedBoosted ? MOVE_ACCEL*1.6 : MOVE_ACCEL;
+  var maxSpeedEff = speedBoosted ? MAX_SPEED*1.5 : MAX_SPEED;
+
   var moving = false;
-  if (keys.left){ player.vx -= MOVE_ACCEL*step; player.facing=-1; moving=true; }
-  if (keys.right){ player.vx += MOVE_ACCEL*step; player.facing=1; moving=true; }
+  if (keys.left){ player.vx -= moveAccelEff*step; player.facing=-1; moving=true; }
+  if (keys.right){ player.vx += moveAccelEff*step; player.facing=1; moving=true; }
   if (!moving) player.vx *= Math.pow(FRICTION, step);
-  if (player.vx > MAX_SPEED) player.vx = MAX_SPEED;
-  if (player.vx < -MAX_SPEED) player.vx = -MAX_SPEED;
+  if (player.vx > maxSpeedEff) player.vx = maxSpeedEff;
+  if (player.vx < -maxSpeedEff) player.vx = -maxSpeedEff;
 
   if (player.grounded) player.coyoteTimer = COYOTE_MS;
   player.jumpBufferTimer = Math.max(0, player.jumpBufferTimer - dt);
@@ -893,7 +942,8 @@ function updatePlayer(dt, step){
   }
   if (!player.grounded) player.coyoteTimer = Math.max(0, player.coyoteTimer - dt);
 
-  if (kickPressedEdge && (elapsed - player.lastKick) > KICK_COOLDOWN){
+  var kickCooldownEff = player.activePowerup === 'rapid' ? KICK_COOLDOWN*0.35 : KICK_COOLDOWN;
+  if (kickPressedEdge && (elapsed - player.lastKick) > kickCooldownEff){
     player.lastKick = elapsed;
     player.kickTimer = 220;
     SFX.kick();
@@ -954,7 +1004,7 @@ function updatePlayer(dt, step){
 
   if (player.kickTimer > 0) player.kickTimer -= dt;
   if (moving && player.grounded){
-    var speedFrac = Math.abs(player.vx) / MAX_SPEED;
+    var speedFrac = Math.abs(player.vx) / maxSpeedEff;
     player.runPhase += step*0.05*(0.55+speedFrac*0.75);
   } else if (player.grounded) player.runPhase = 0;
 
@@ -1114,6 +1164,34 @@ function updateCollectibles(dt, step){
       SFX.coin();
     }
   });
+}
+
+function activatePowerup(type){
+  player.activePowerup = type;
+  player.powerupTimer = type==='shield' ? SHIELD_MS : (type==='speed' ? SPEED_BOOST_MS : RAPID_KICK_MS);
+  updatePowerupBadge();
+  SFX.powerup();
+}
+
+function updatePowerups(dt, step){
+  powerups.forEach(function(p){
+    if (p.taken) return;
+    p.bob += step*0.06;
+    var pb = {x:p.x-10, y:p.y-10+Math.sin(p.bob)*4, w:20, h:20};
+    if (rectsOverlap(player, pb)){
+      p.taken = true;
+      activatePowerup(p.type);
+      spawnParticles(p.x, p.y, '#FFC531', 10, 5);
+    }
+  });
+  if (player.activePowerup){
+    player.powerupTimer -= dt;
+    if (player.powerupTimer <= 0){
+      player.activePowerup = null;
+      player.powerupTimer = 0;
+    }
+    updatePowerupBadge();
+  }
 }
 
 function updateParticles(dt, step){
@@ -1508,6 +1586,43 @@ function drawCollectibles(){
   });
 }
 
+var POWERUP_COLORS = { speed:['#FFE066','#F2A900'], shield:['#8ECBFF','#2E7DD1'], rapid:['#FFB066','#E0631C'] };
+function drawPowerups(){
+  powerups.forEach(function(p){
+    if (p.taken) return;
+    var x = p.x - camX, y = p.y + Math.sin(p.bob)*4;
+    if (x < -20 || x > W+20) return;
+    var cols = POWERUP_COLORS[p.type] || POWERUP_COLORS.speed;
+    ctx.save();
+    ctx.translate(x,y);
+    var glow = ctx.createRadialGradient(0,0,2,0,0,15);
+    glow.addColorStop(0, 'rgba(255,255,255,0.55)'); glow.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0,0,15,0,Math.PI*2); ctx.fill();
+    var bg = ctx.createRadialGradient(-3,-4,1,0,0,11);
+    bg.addColorStop(0, cols[0]); bg.addColorStop(1, cols[1]);
+    ctx.beginPath(); ctx.arc(0,0,11,0,Math.PI*2); ctx.fillStyle = bg; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
+    if (p.type === 'speed'){
+      ctx.beginPath();
+      ctx.moveTo(1,-6); ctx.lineTo(-4,1); ctx.lineTo(-0.5,1); ctx.lineTo(-2,6); ctx.lineTo(4,-1); ctx.lineTo(0.5,-1);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (p.type === 'shield'){
+      ctx.beginPath();
+      ctx.moveTo(0,-6); ctx.quadraticCurveTo(5,-4,5,-1); ctx.quadraticCurveTo(5,4,0,6.5);
+      ctx.quadraticCurveTo(-5,4,-5,-1); ctx.quadraticCurveTo(-5,-4,0,-6);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(0,-6); ctx.quadraticCurveTo(4,-2,2,2); ctx.quadraticCurveTo(4,1,3,4);
+      ctx.quadraticCurveTo(0,7,-3,4); ctx.quadraticCurveTo(-4,0,-1,-1); ctx.quadraticCurveTo(-2,-4,0,-6);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  });
+}
+
 function drawBalls(){
   balls.forEach(function(b){
     var x = b.x - camX + b.w/2, y = b.y + b.h/2;
@@ -1570,6 +1685,12 @@ function drawEnemy(e){
     ctx.translate(cx, e.y+e.h/2);
     ctx.scale(e.dir<0?-1:1, 1);
 
+    var faceSeedE = e.faceSeed || 0;
+    var heightScaleE = 0.82 + (faceSeedE % 5) * 0.09;
+    ctx.translate(0, 21);
+    ctx.scale(heightScaleE, heightScaleE);
+    ctx.translate(0, -21);
+
     var skinPaletteE = ['#E3A579','#C68A5C','#F0C9A0','#8D5A3C'];
     var hairPaletteE = ['#2B1A10','#5C3A1E','#8A5A30','#1A1A1A','#6B4226'];
     var jerseyPaletteE = [
@@ -1579,7 +1700,6 @@ function drawEnemy(e){
       ['#7A3BE8','#4C1CA8'], // purple
       ['#3BE87F','#1CA84E']  // green
     ];
-    var faceSeedE = e.faceSeed || 0;
     var skinGradE = skinPaletteE[faceSeedE % skinPaletteE.length];
     var hairColorE = hairPaletteE[Math.floor(faceSeedE/skinPaletteE.length) % hairPaletteE.length];
     var jerseyColorsE = jerseyPaletteE[(faceSeedE*3+1) % jerseyPaletteE.length];
@@ -1655,6 +1775,10 @@ function drawEnemy(e){
     ctx.beginPath(); ctx.ellipse(cx, e.baseY+e.h/2+2, e.w/2*0.85, 3.5, 0, 0, Math.PI*2); ctx.fill();
     ctx.save();
     ctx.translate(cx, e.baseY+e.h/2);
+    var heightScaleK = 0.85 + ((e.faceSeed||0) % 4) * 0.08;
+    ctx.translate(0, 21);
+    ctx.scale(heightScaleK, heightScaleK);
+    ctx.translate(0, -21);
 
     var skinGradK = '#E3A579';
     var shortsGradK = '#1B2735';
@@ -1746,6 +1870,27 @@ function drawLimb(pivotX, pivotY, angle, len, thick, grad, sockColor){
     ctx.fill();
     ctx.fillStyle = '#4F8FD1';
     ctx.fillRect(-thick/2-1, len+1.3, thick+4, 1.2);
+  }
+  ctx.restore();
+}
+
+function drawPlayerAura(){
+  if (!player.activePowerup) return;
+  var cx = player.x - camX + player.w/2, cy = player.y + player.h/2;
+  var cols = POWERUP_COLORS[player.activePowerup] || POWERUP_COLORS.speed;
+  var pulse = 0.75 + Math.sin(elapsed*0.008)*0.25;
+  ctx.save();
+  ctx.globalAlpha = pulse;
+  if (player.activePowerup === 'shield'){
+    ctx.strokeStyle = cols[1]; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(cx, cy, player.h*0.62, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = 'rgba(142,203,255,0.14)';
+    ctx.beginPath(); ctx.arc(cx, cy, player.h*0.62, 0, Math.PI*2); ctx.fill();
+  } else {
+    var glow = ctx.createRadialGradient(cx,cy,4,cx,cy,player.h*0.75);
+    glow.addColorStop(0, cols[0]+'aa'); glow.addColorStop(1, cols[0]+'00');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(cx, cy, player.h*0.75, 0, Math.PI*2); ctx.fill();
   }
   ctx.restore();
 }
@@ -1998,9 +2143,11 @@ function render(){
   drawCrates();
   drawGoal();
   drawCollectibles();
+  drawPowerups();
   enemies.forEach(function(e){ if (e.alive) drawEnemy(e); });
   drawBalls();
   drawEnemyBalls();
+  drawPlayerAura();
   drawLeo();
   drawParticles();
   if (gameState==='levelcomplete' || gameState==='champion') drawConfetti();
@@ -2116,6 +2263,7 @@ function loop(ts){
     updatePlayer(dt, step);
     updateEnemies(dt, step);
     updateCollectibles(dt, step);
+    updatePowerups(dt, step);
     updateParticles(dt, step);
     camX = Math.max(0, Math.min(player.x - W/2 + player.w/2, WORLD_WIDTH - W));
   } else if (gameState==='levelcomplete' || gameState==='champion'){
@@ -2129,46 +2277,54 @@ function loop(ts){
 
 // ---------- Weather ----------
 var rainActive = false;
+var rainIntensity = 0; // 0..1, eases toward rainActive's target instead of snapping
 var rainTimer = 0;
 var rainCooldown = 20000 + Math.random()*25000;
 var rainDrops = [];
-function initRainDrops(){
-  rainDrops = [];
+(function initRainDrops(){
   for (var i=0; i<70; i++){
     rainDrops.push({
       x: Math.random()*W, y: Math.random()*H,
       len: 10+Math.random()*10, speed: 9+Math.random()*5
     });
   }
-}
+})();
 function updateWeather(dt, step){
   if (rainActive){
     rainTimer -= dt;
     if (rainTimer <= 0){
       rainActive = false;
       rainCooldown = 30000 + Math.random()*40000;
-      return;
     }
+  } else {
+    rainCooldown -= dt;
+    if (rainCooldown <= 0){
+      rainActive = true;
+      rainTimer = 45000 + Math.random()*30000;
+    }
+  }
+
+  // Ease intensity toward on/off over a few seconds instead of snapping,
+  // so rain gently ramps up and winds down rather than switching instantly.
+  var target = rainActive ? 1 : 0;
+  var rampStep = step*0.006;
+  if (rainIntensity < target) rainIntensity = Math.min(target, rainIntensity + rampStep);
+  else if (rainIntensity > target) rainIntensity = Math.max(target, rainIntensity - rampStep);
+
+  if (rainIntensity > 0){
     rainDrops.forEach(function(d){
       d.y += d.speed*step*2;
       d.x -= d.speed*step*0.3;
       if (d.y > H){ d.y = -10; d.x = Math.random()*W; }
       if (d.x < -20){ d.x = W+20; }
     });
-  } else {
-    rainCooldown -= dt;
-    if (rainCooldown <= 0){
-      rainActive = true;
-      rainTimer = 45000 + Math.random()*30000;
-      initRainDrops();
-    }
   }
 }
 function drawRain(){
-  if (!rainActive) return;
-  ctx.fillStyle = 'rgba(20,30,55,0.14)';
+  if (rainIntensity <= 0) return;
+  ctx.fillStyle = 'rgba(20,30,55,' + (0.14*rainIntensity) + ')';
   ctx.fillRect(0,0,W,H);
-  ctx.strokeStyle = 'rgba(210,230,255,0.5)';
+  ctx.strokeStyle = 'rgba(210,230,255,' + (0.5*rainIntensity) + ')';
   ctx.lineWidth = 1.5; ctx.lineCap = 'round';
   rainDrops.forEach(function(d){
     ctx.beginPath();
