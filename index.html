@@ -144,6 +144,7 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
 .score-line{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:clamp(14px,2.6vw,19px);color:var(--ink);margin:0 0 4px;}
 .score-line.new-best{color:#2E9E4F;}
 .level-best-time{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:clamp(10px,2vw,12px);color:var(--ink);opacity:0.75;}
+.level-mini-stars{font-size:12px;letter-spacing:1px;color:#FFC531;line-height:1;}
 .btn-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
 .link-btn{background:none;border:none;color:#fff;text-decoration:underline;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;cursor:pointer;padding:4px;}
 
@@ -701,6 +702,16 @@ function saveBestTimes(){
   try{ localStorage.setItem('superleo_besttimes', JSON.stringify(bestTimes)); }catch(e){}
 }
 var bestTimes = loadBestTimes(); // { [levelIndex]: milliseconds }
+function loadLevelStars(){
+  try{
+    var raw = JSON.parse(localStorage.getItem('superleo_levelstars'));
+    return (raw && typeof raw === 'object') ? raw : {};
+  }catch(e){ return {}; }
+}
+function saveLevelStars(){
+  try{ localStorage.setItem('superleo_levelstars', JSON.stringify(levelStars)); }catch(e){}
+}
+var levelStars = loadLevelStars(); // { [levelIndex]: best stars 0-3 earned }
 function formatTime(ms){
   var totalSec = Math.floor(ms/1000);
   var m = Math.floor(totalSec/60);
@@ -762,6 +773,10 @@ var floatingTexts = [];
 var camX = 0;
 var shakeTimer=0, shakeDuration=1, shakeMag=0;
 function triggerShake(mag,dur){ shakeMag=mag; shakeDuration=dur; shakeTimer=dur; }
+
+function vibrate(pattern){
+  try{ if (navigator.vibrate) navigator.vibrate(pattern); }catch(e){}
+}
 
 function spawnFloatingText(x, y, text, color){
   floatingTexts.push({x:x, y:y, text:text, color:color||'#fff', life:1, vy:-0.55});
@@ -977,6 +992,18 @@ function renderLevelSelect(){
     label.className = 'level-names';
     label.textContent = locked ? 'Locked' : lv.name;
     wrap.appendChild(btn); wrap.appendChild(label);
+    if (!locked && levelStars[i]){
+      var starLabel = document.createElement('div');
+      starLabel.className = 'level-mini-stars';
+      var earned = levelStars[i];
+      for (var si=0; si<3; si++){
+        var starSpan = document.createElement('span');
+        starSpan.textContent = si < earned ? '★' : '☆';
+        starSpan.style.opacity = si < earned ? '1' : '0.4';
+        starLabel.appendChild(starSpan);
+      }
+      wrap.appendChild(starLabel);
+    }
     if (!locked && bestTimes[i] !== undefined){
       var timeLabel = document.createElement('div');
       timeLabel.className = 'level-best-time';
@@ -1170,7 +1197,7 @@ function damagePlayer(fromX){
     player.activePowerup = null; player.powerupTimer = 0;
     updatePowerupBadge();
     player.hurtTimer = 500;
-    SFX.pop(); triggerShake(5,180);
+    SFX.pop(); triggerShake(5,180); vibrate(40);
     spawnParticles(player.x+player.w/2, player.y+player.h/2, '#5AB0FF', 12, 5);
     return;
   }
@@ -1178,7 +1205,7 @@ function damagePlayer(fromX){
   player.hurtTimer = HURT_INVULN;
   player.vx = (player.x < fromX ? -1 : 1) * 5;
   player.vy = -8;
-  SFX.hurt(); triggerShake(8,250);
+  SFX.hurt(); triggerShake(8,250); vibrate(120);
   updateHearts();
   breakCombo();
   if (lives <= 0){ triggerGameOver(); }
@@ -1501,7 +1528,7 @@ function updateGoldenBall(dt, step){
     score += 200; updateScore();
     spawnParticles(goldenBall.x, goldenBall.y, '#FFC531', 20, 6);
     spawnFloatingText(goldenBall.x, goldenBall.y-16, 'GOLDEN BALL! +200', '#FFC531');
-    SFX.powerup(); triggerShake(4,200);
+    SFX.powerup(); triggerShake(4,200); vibrate([30,50,30]);
     registerComboHit(goldenBall.x, goldenBall.y);
   }
 }
@@ -3000,8 +3027,19 @@ document.getElementById('btn-cancel-rotate').addEventListener('click', function(
   hideRotatePrompt();
 });
 
+function tryLockLandscape(){
+  // Best-effort only: most browsers require fullscreen for this to
+  // actually succeed, and plenty (e.g. iOS Safari) don't support it at
+  // all — silently ignore rejection either way.
+  try{
+    if (screen.orientation && screen.orientation.lock){
+      screen.orientation.lock('landscape').catch(function(){});
+    }
+  }catch(e){}
+}
 function beginLevel(idx){
   ensureAudio();
+  tryLockLandscape();
   loadLevel(idx);
   gameState = 'playing';
   hideAllScreens();
@@ -3029,12 +3067,17 @@ function triggerLevelComplete(){
   gameState = 'levelcomplete';
   player.celebrating = true; player.vx = 0;
   SFX.levelComplete();
+  vibrate([50,50,50]);
   triggerConfetti(30);
   var collected = collectibles.filter(function(c){return c.taken;}).length;
   var pct = totalCollectibles ? collected/totalCollectibles : 1;
   var stars = pct >= 0.85 ? 3 : (pct >= 0.5 ? 2 : 1);
   runTotalScore += score;
   runTotalStars += stars;
+  if (!levelStars[currentLevelIndex] || stars > levelStars[currentLevelIndex]){
+    levelStars[currentLevelIndex] = stars;
+    saveLevelStars();
+  }
   var prevUnlocked = progress.unlocked;
   progress.unlocked = Math.max(progress.unlocked, Math.min(currentLevelIndex+2, LEVELS.length));
   progress.best = Math.max(progress.best, runTotalScore);
@@ -3070,6 +3113,7 @@ function triggerLevelComplete(){
 function triggerChampion(){
   gameState = 'champion';
   SFX.champion();
+  vibrate([100,50,100,50,200]);
   triggerConfetti(70);
   var newlyChampioned = !progress.championed;
   progress.championed = true;
