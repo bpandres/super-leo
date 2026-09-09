@@ -376,7 +376,7 @@ var LEVELS = [
   ],
   movingPlatforms:[{x:590,y:350,w:100,h:24,axis:'x',range:90,speed:0.6}],
   springPads:[{x:1850,y:GROUND_Y-20,w:40,h:20}],
-  spikes:[{x:1250,y:GROUND_Y-14,w:40,h:14}],
+  spikes:[{x:850,y:GROUND_Y-14,w:40,h:14}],
   crates:[{x:1000,y:GROUND_Y-40,w:40,h:40}],
   collectibleGroups:[
     {cx:120,cy:360,n:5,spread:42},{cx:760,cy:300,n:3,spread:40},
@@ -1528,6 +1528,34 @@ function drawEnemyBalls(){
   });
 }
 
+function drawEnemyHairStyle(style, hairColor){
+  ctx.fillStyle = hairColor;
+  if (style === 1){
+    // spiky
+    ctx.beginPath(); ctx.arc(0,-25,7.8,Math.PI,Math.PI*2); ctx.fill();
+    for (var s=-6; s<=6; s+=3){
+      ctx.beginPath();
+      ctx.moveTo(s-1.8,-31); ctx.lineTo(s+1.8,-31); ctx.lineTo(s, -36-Math.abs(s)*0.3);
+      ctx.closePath(); ctx.fill();
+    }
+  } else if (style === 2){
+    // buzzcut (thin, close-cropped)
+    ctx.beginPath(); ctx.arc(0,-24.5,8.3,Math.PI*1.05,Math.PI*1.95); ctx.fill();
+  } else if (style === 3){
+    // curly
+    for (var cx2=-6; cx2<=6; cx2+=3.5){
+      ctx.beginPath(); ctx.arc(cx2,-29-Math.abs(cx2)*0.15,4.2,0,Math.PI*2); ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(0,-25.5,8.2,Math.PI,Math.PI*2); ctx.fill();
+  } else {
+    // short crop (default)
+    ctx.beginPath(); ctx.arc(0,-25.5,8.2,Math.PI,Math.PI*2); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-8,-24); ctx.quadraticCurveTo(-9,-18.5,-7.2,-17.3); ctx.quadraticCurveTo(-7.8,-21.5,-4.6,-23.5);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
 function drawEnemy(e){
   var x = e.x - camX;
   if (x+e.w < -20 || x > W+20) return;
@@ -1544,9 +1572,18 @@ function drawEnemy(e){
 
     var skinPaletteE = ['#E3A579','#C68A5C','#F0C9A0','#8D5A3C'];
     var hairPaletteE = ['#2B1A10','#5C3A1E','#8A5A30','#1A1A1A','#6B4226'];
+    var jerseyPaletteE = [
+      ['#E8493B','#A8251C'], // red
+      ['#3B7DE8','#1C4CA8'], // blue
+      ['#E8C93B','#B89A1C'], // yellow
+      ['#7A3BE8','#4C1CA8'], // purple
+      ['#3BE87F','#1CA84E']  // green
+    ];
     var faceSeedE = e.faceSeed || 0;
     var skinGradE = skinPaletteE[faceSeedE % skinPaletteE.length];
     var hairColorE = hairPaletteE[Math.floor(faceSeedE/skinPaletteE.length) % hairPaletteE.length];
+    var jerseyColorsE = jerseyPaletteE[(faceSeedE*3+1) % jerseyPaletteE.length];
+    var hairStyleE = (faceSeedE*7+2) % 4;
     var legGradE = '#22262E';
 
     var kickingE = e.kickTimer > 0;
@@ -1582,7 +1619,7 @@ function drawEnemy(e){
     ctx.save(); ctx.translate(-8.5,-9); ctx.rotate(strideR*0.06); ctx.fillRect(-2.2,0,4.4,10); ctx.restore();
 
     var jerseyGradE = ctx.createLinearGradient(-8.5,-16,8.5,5);
-    jerseyGradE.addColorStop(0,'#E8493B'); jerseyGradE.addColorStop(1,'#A8251C');
+    jerseyGradE.addColorStop(0,jerseyColorsE[0]); jerseyGradE.addColorStop(1,jerseyColorsE[1]);
     ctx.fillStyle = jerseyGradE;
     ctx.beginPath();
     ctx.moveTo(-8.5,-11.5); ctx.quadraticCurveTo(-8.5,-15,-5,-15); ctx.lineTo(5,-15);
@@ -1601,9 +1638,7 @@ function drawEnemy(e){
 
     ctx.fillStyle = skinGradE;
     ctx.beginPath(); ctx.ellipse(0,-23,8,8.6,0,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle = hairColorE;
-    ctx.beginPath(); ctx.arc(0,-25.5,8.2,Math.PI,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(-8,-24); ctx.quadraticCurveTo(-9,-18.5,-7.2,-17.3); ctx.quadraticCurveTo(-7.8,-21.5,-4.6,-23.5); ctx.closePath(); ctx.fill();
+    drawEnemyHairStyle(hairStyleE, hairColorE);
 
     ctx.strokeStyle=hairColorE; ctx.lineWidth=1.5; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(-5.8,-24.3); ctx.lineTo(-1.4,-22.5); ctx.stroke();
