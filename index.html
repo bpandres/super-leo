@@ -1528,10 +1528,12 @@ function drawLeo(){
       ctx.beginPath(); ctx.ellipse(3,-17.7,celebrating?3.6:2.7,celebrating?2.2:1.5,0,0,Math.PI); ctx.fill();
       ctx.fillStyle = '#fff';
       ctx.beginPath(); ctx.ellipse(3,-18.3,celebrating?3.2:2.4,0.9,0,0,Math.PI); ctx.fill();
+    } else if (kicking || rising){
+      ctx.fillStyle = '#9B5A45';
+      ctx.beginPath(); ctx.ellipse(3,-17.8,1.5,1.7,0,0,Math.PI*2); ctx.fill();
     } else {
       ctx.strokeStyle = '#9B5A45'; ctx.lineWidth=1.6; ctx.lineCap='round';
-      if (kicking || rising){ ctx.beginPath(); ctx.arc(3,-17.7,2.4,Math.PI,Math.PI*2); ctx.stroke(); }
-      else { ctx.beginPath(); ctx.arc(3,-18.5, 2.4, 0.25, Math.PI-0.25); ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(3,-18.5, 2.4, 0.25, Math.PI-0.25); ctx.stroke();
     }
   }
 
