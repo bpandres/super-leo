@@ -1,4 +1,4 @@
-const CACHE_NAME = 'super-leo-v11';
+const CACHE_NAME = 'super-leo-v12';
 const APP_SHELL = [
   './',
   './index.html',

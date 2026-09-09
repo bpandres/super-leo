@@ -1,7 +1,7 @@
 {
   "name": "Super Leo",
   "short_name": "Super Leo",
-  "description": "A Mario-style platformer starring Leo — run, jump, and kick soccer balls across three worlds.",
+  "description": "A Mario-style platformer starring Leo — run, jump, and kick soccer balls across four worlds.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

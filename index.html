@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Super Leo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="description" content="A Mario-style platformer starring Leo — run, jump, and kick soccer balls across three worlds.">
+<meta name="description" content="A Mario-style platformer starring Leo — run, jump, and kick soccer balls across four worlds.">
 <link rel="manifest" href="manifest.json">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -214,7 +214,7 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
 </div>
 <div id="stage">
   <div id="frame">
-    <h2 class="sr-only">Super Leo: a side-scrolling platformer where you run, jump, and kick soccer balls across three worlds to reach each goal net.</h2>
+    <h2 class="sr-only">Super Leo: a side-scrolling platformer where you run, jump, and kick soccer balls across four worlds to reach each goal net.</h2>
     <canvas id="game"></canvas>
 
     <div id="hud" hidden>
@@ -591,6 +591,16 @@ var currentLevelIndex = 0;
 var theme = 'grass';
 var WORLD_WIDTH = 3500;
 var ground = [], platforms = [], movingPlatforms = [], springPads = [], spikes = [], crates = [];
+// The ground/platform/spring-pad geometry never changes shape after a level
+// loads (only movingPlatforms and crates do), so it's built once here
+// instead of being re-derived from scratch on every collision check.
+var staticSolids = [];
+function rebuildStaticSolids(){
+  staticSolids = [];
+  ground.forEach(function(g){ staticSolids.push({x:g.x0, y:GROUND_Y, w:g.x1-g.x0, h:H-GROUND_Y}); });
+  platforms.forEach(function(p){ staticSolids.push(p); });
+  springPads.forEach(function(p){ staticSolids.push(p); });
+}
 var enemies = [], collectibles = [], goal = {x:0,y:0,w:0,h:0};
 var totalCollectibles = 0;
 var powerups = [];
@@ -653,6 +663,10 @@ function loadLevel(idx){
   springPads = clone(def.springPads).map(function(sp){ sp.y += groundOffset; return sp; });
   spikes = clone(def.spikes).map(function(sk){ sk.y += groundOffset; return sk; });
   crates = clone(def.crates).map(function(c){ c.alive = true; c.y += groundOffset; return c; });
+  rebuildStaticSolids();
+  rebuildGroundDecor();
+  rebuildPlatformDecor(platforms);
+  rebuildPlatformDecor(movingPlatforms);
   enemies = clone(def.enemies).map(function(e, idx){
     e.alive = true; e.dir = 1; e.y += groundOffset; e.faceSeed = idx;
     if (e.type === 'bouncer'){
@@ -904,12 +918,11 @@ if (window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)'
 }
 
 // ---------- Collision helpers ----------
+// Ground/platforms/springPads are precomputed once per level load in
+// staticSolids (see rebuildStaticSolids); only movingPlatforms (which move)
+// and crates (which can break) need to be appended fresh each call.
 function allSolids(){
-  var list = [];
-  ground.forEach(function(g){ list.push({x:g.x0, y:GROUND_Y, w:g.x1-g.x0, h:H-GROUND_Y}); });
-  platforms.forEach(function(p){ list.push(p); });
-  movingPlatforms.forEach(function(p){ list.push(p); });
-  springPads.forEach(function(p){ list.push(p); });
+  var list = staticSolids.concat(movingPlatforms);
   crates.forEach(function(c){ if(c.alive) list.push(c); });
   return list;
 }
@@ -1183,11 +1196,9 @@ function updateEnemies(dt, step){
     }
   });
 
-  var terrainForBalls = [];
-  ground.forEach(function(g){ terrainForBalls.push({x:g.x0, y:GROUND_Y, w:g.x1-g.x0, h:H-GROUND_Y}); });
-  platforms.forEach(function(p){ terrainForBalls.push(p); });
-  movingPlatforms.forEach(function(p){ terrainForBalls.push(p); });
-  springPads.forEach(function(p){ terrainForBalls.push(p); });
+  // Same terrain as allSolids() minus crates, which player balls break
+  // instead of just bouncing off (handled separately below).
+  var terrainForBalls = staticSolids.concat(movingPlatforms);
   balls.forEach(function(b){
     b.life -= dt;
     b.x += b.vx*step;
@@ -1572,21 +1583,22 @@ function groundPalette(){
   return { dirtTop:'#8B5A2B', dirtMid:'#6B4423', dirtBot:'#4A2E17', capTop:'#6FCB5E', capBot:'#3d8b41', tuft:'#2f7534', speckle:'rgba(0,0,0,0.15)' };
 }
 
-function drawGround(){
-  var pal = groundPalette();
-  var collarH = 14; // straight collar right under the grass cap, before the rock face starts jagging
-  var jagStep = 15;
+var GROUND_COLLAR_H = 14; // straight collar right under the grass cap, before the rock face starts jagging
+var GROUND_JAG_STEP = 15;
+
+// The jagged cliff silhouette, its speckle texture, and its grass tufts are
+// all deterministic from a ground segment's fixed x0/x1/seed — they never
+// change while the level is loaded (only camX does). Precomputing them once
+// here instead of re-deriving every frame with trig avoids a lot of
+// per-frame allocation and Math.sin() calls.
+function rebuildGroundDecor(){
   var bottomY = H+4;
   ground.forEach(function(g){
-    var x = g.x0 - camX, w = g.x1-g.x0;
-    if (x+w < 0 || x > W) return;
+    var w = g.x1-g.x0;
     var seed = Math.floor(g.x0);
-
-    // The drop-off edges get an irregular, rocky silhouette instead of a
-    // perfectly straight cliff face.
     function jagPoints(baseX, dirSign, seedOffset){
       var pts = [];
-      for (var y=GROUND_Y+collarH; y<bottomY; y+=jagStep){
+      for (var y=GROUND_Y+GROUND_COLLAR_H; y<bottomY; y+=GROUND_JAG_STEP){
         var n = Math.sin(y*0.22 + seed*0.7 + seedOffset);
         var amp = 3 + Math.abs(Math.sin(y*0.07 + seed*1.3 + seedOffset))*5;
         pts.push({x: baseX + dirSign*amp*n, y:y});
@@ -1594,18 +1606,41 @@ function drawGround(){
       pts.push({x:baseX, y:bottomY});
       return pts;
     }
-    var leftPts = jagPoints(x, -1, 0);
-    var rightPts = jagPoints(x+w, 1, 500);
+    g._leftPts = jagPoints(g.x0, -1, 0);
+    g._rightPts = jagPoints(g.x1, 1, 500);
+    g._speckles = [];
+    for (var r=20;r<w-10;r+=53){
+      g._speckles.push({x:g.x0+(r+seed*7)%w, y:GROUND_Y+28+((r*13)%40), rad:5+((r*7)%5)});
+    }
+    g._tufts = [];
+    for (var i=0;i<w;i+=14){
+      g._tufts.push({x:g.x0+i, h:6+((i*31+seed)%7)});
+    }
+  });
+}
+
+function drawGround(){
+  var pal = groundPalette();
+  var bottomY = H+4;
+  ground.forEach(function(g){
+    var x = g.x0 - camX, w = g.x1-g.x0;
+    if (x+w < 0 || x > W) return;
+
+    // The precomputed points are in world space, so draw this segment
+    // inside a translated context instead of re-deriving camera-relative
+    // coordinates for every point.
+    ctx.save();
+    ctx.translate(-camX, 0);
 
     function traceBody(){
       ctx.beginPath();
-      ctx.moveTo(x, GROUND_Y);
-      ctx.lineTo(x, GROUND_Y+collarH);
-      leftPts.forEach(function(p){ ctx.lineTo(p.x,p.y); });
-      ctx.lineTo(x+w, bottomY);
-      for (var i=rightPts.length-1;i>=0;i--) ctx.lineTo(rightPts[i].x, rightPts[i].y);
-      ctx.lineTo(x+w, GROUND_Y+collarH);
-      ctx.lineTo(x+w, GROUND_Y);
+      ctx.moveTo(g.x0, GROUND_Y);
+      ctx.lineTo(g.x0, GROUND_Y+GROUND_COLLAR_H);
+      g._leftPts.forEach(function(p){ ctx.lineTo(p.x,p.y); });
+      ctx.lineTo(g.x1, bottomY);
+      for (var i=g._rightPts.length-1;i>=0;i--) ctx.lineTo(g._rightPts[i].x, g._rightPts[i].y);
+      ctx.lineTo(g.x1, GROUND_Y+GROUND_COLLAR_H);
+      ctx.lineTo(g.x1, GROUND_Y);
       ctx.closePath();
     }
 
@@ -1619,31 +1654,49 @@ function drawGround(){
     traceBody();
     ctx.clip();
     ctx.fillStyle = pal.speckle;
-    for (var r=20;r<w-10;r+=53){
-      ctx.beginPath(); ctx.arc(x+ (r+seed*7)%w, GROUND_Y+28+((r*13)%40), 5+((r*7)%5), 0, Math.PI*2); ctx.fill();
-    }
+    g._speckles.forEach(function(s){
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.rad, 0, Math.PI*2); ctx.fill();
+    });
     ctx.restore();
 
     // Border definition along the jagged rock faces.
     ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.moveTo(x, GROUND_Y+collarH);
-    leftPts.forEach(function(p){ ctx.lineTo(p.x,p.y); });
+    ctx.moveTo(g.x0, GROUND_Y+GROUND_COLLAR_H);
+    g._leftPts.forEach(function(p){ ctx.lineTo(p.x,p.y); });
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(x+w, GROUND_Y+collarH);
-    rightPts.forEach(function(p){ ctx.lineTo(p.x,p.y); });
+    ctx.moveTo(g.x1, GROUND_Y+GROUND_COLLAR_H);
+    g._rightPts.forEach(function(p){ ctx.lineTo(p.x,p.y); });
     ctx.stroke();
 
     var gg = ctx.createLinearGradient(0,GROUND_Y-12,0,GROUND_Y+6);
     gg.addColorStop(0,pal.capTop); gg.addColorStop(1,pal.capBot);
     ctx.fillStyle = gg;
-    ctx.fillRect(x, GROUND_Y-10, w, 14);
+    ctx.fillRect(g.x0, GROUND_Y-10, w, 14);
     ctx.fillStyle = pal.tuft;
-    for (var i=0;i<w;i+=14){
-      var bh = 6+((i*31+seed)%7);
-      ctx.fillRect(x+i, GROUND_Y-10-bh+6, 3, bh);
-    }
+    g._tufts.forEach(function(t){
+      ctx.fillRect(t.x, GROUND_Y-10-t.h+6, 3, t.h);
+    });
+    ctx.restore();
+  });
+}
+
+function seededRnd(seed, n){ return ((Math.sin(seed*12.9898 + n*78.233)*43758.5453)%1+1)%1; }
+
+// The floating-platform shape (rounded corners, taper, bottom bulge) is
+// deterministic from a platform's fixed size/seed — precompute those
+// scalars once per level load instead of calling seededRnd() 3x per
+// platform on every single frame.
+function rebuildPlatformDecor(list){
+  list.forEach(function(p){
+    var seed = Math.floor(p.baseX !== undefined ? p.baseX : p.x);
+    p._seed = seed;
+    p._r = Math.min(9, p.h*0.5, p.w*0.25);
+    p._inset = Math.min(14, p.w*0.16);
+    p._bulge = p.h*0.22 + seededRnd(seed,1)*p.h*0.18;
+    p._midDipFrac1 = 0.75 + seededRnd(seed,2)*0.4;
+    p._midDipFrac2 = 0.55 + seededRnd(seed,3)*0.4;
   });
 }
 
@@ -1653,19 +1706,15 @@ function drawPlatformList(list){
   list.forEach(function(p){
     var x = p.x - camX;
     if (x+p.w < 0 || x > W) return;
-    // Seed the shape/texture from the platform's fixed starting position
-    // (not its live x), so a moving platform doesn't reshuffle its look
-    // every frame as it slides back and forth.
-    var seed = Math.floor(p.baseX !== undefined ? p.baseX : p.x);
-    function rnd(n){ return ((Math.sin(seed*12.9898 + n*78.233)*43758.5453)%1+1)%1; }
+    var seed = p._seed;
 
     // A floating chunk of terrain: rounded top corners, a tapered, uneven
     // underside (like a clump of earth), instead of a plain rectangle.
-    var r = Math.min(9, p.h*0.5, p.w*0.25);
-    var inset = Math.min(14, p.w*0.16);
-    var bulge = p.h*0.22 + rnd(1)*p.h*0.18;
-    var midDip1 = p.y+p.h + bulge*(0.75+rnd(2)*0.4);
-    var midDip2 = p.y+p.h + bulge*(0.55+rnd(3)*0.4);
+    var r = p._r;
+    var inset = p._inset;
+    var bulge = p._bulge;
+    var midDip1 = p.y+p.h + bulge*p._midDipFrac1;
+    var midDip2 = p.y+p.h + bulge*p._midDipFrac2;
     var bottomY = p.y+p.h+bulge;
     var top = p.y, left = x, right = x+p.w, bw = p.w;
 
@@ -2006,7 +2055,11 @@ function drawEnemy(e){
 
     var faceSeedE = e.faceSeed || 0;
     // The boss reads as a much bigger, tougher presence on the pitch.
-    var heightScaleE = e.isBoss ? 1.55 : (0.93 + (faceSeedE % 5) * 0.035);
+    // Kept close to the goalie's max scale (1.3x) rather than pushed further:
+    // this sprite scales around a near-feet pivot, so much bigger than that
+    // makes the head render well above the actual (unscaled) hit box, and
+    // stomps/kicks aimed at his visible head would whiff.
+    var heightScaleE = e.isBoss ? 1.32 : (0.93 + (faceSeedE % 5) * 0.035);
     ctx.translate(0, 21);
     ctx.scale(heightScaleE, heightScaleE);
     ctx.translate(0, -21);
