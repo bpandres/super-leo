@@ -121,6 +121,48 @@ canvas{display:block;width:100%;height:100%;image-rendering:optimizeQuality;}
   display:flex;gap:16px;justify-content:center;flex-wrap:wrap;
   font-family:'Nunito',sans-serif;font-weight:700;font-size:clamp(11px,2vw,14px);
 }
+.menu-card{
+  background:rgba(15,28,46,0.4);
+  border:2px solid rgba(255,255,255,0.22);
+  border-radius:20px;
+  padding:14px 18px;
+  max-width:480px;
+  width:100%;
+  box-sizing:border-box;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+}
+.menu-card-title{
+  font-family:'Baloo 2',sans-serif;font-weight:700;
+  font-size:clamp(12px,2.2vw,15px);
+  color:#fff;opacity:0.85;
+  margin:0;text-transform:uppercase;letter-spacing:0.5px;
+}
+.menu-divider{
+  font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;
+  color:#fff;opacity:0.6;text-transform:uppercase;letter-spacing:1px;margin:0;
+}
+.chip-toggle{
+  font-family:'Baloo 2',sans-serif;font-weight:700;
+  font-size:clamp(12px,2.2vw,14px);
+  color:#fff;background:rgba(255,255,255,0.12);
+  border:2px solid rgba(255,255,255,0.4);border-radius:999px;
+  padding:7px 14px;cursor:pointer;
+  box-shadow:0 3px 0 rgba(0,0,0,0.3);
+  transition:transform 0.08s;
+}
+.chip-toggle:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink);}
+.chip-toggle.on{background:#DFF5E1;border-color:#2E9E4F;color:#1b5e20;box-shadow:0 3px 0 #1b5e20;}
+.chip-toggle:disabled{opacity:0.5;cursor:not-allowed;}
+.btn-daily{
+  font-family:'Baloo 2',sans-serif;font-weight:700;
+  font-size:clamp(14px,2.6vw,17px);
+  color:#fff;background:#2E6DA4;
+  border:none;border-radius:14px;
+  padding:8px 18px;cursor:pointer;
+  box-shadow:0 4px 0 #1b4a75;
+  transition:transform 0.08s;
+}
+.btn-daily:active{transform:translateY(3px);box-shadow:0 1px 0 #1b4a75;}
 .controls-legend span{display:flex;flex-direction:column;align-items:center;gap:4px;}
 .key{
   background:#fff;border:2px solid var(--ink);border-radius:8px;
@@ -143,7 +185,7 @@ button.play.secondary{background:#2E6DA4;box-shadow:0 6px 0 #1b4a75;}
 button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
 .score-line{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:clamp(14px,2.6vw,19px);color:var(--ink);margin:0 0 4px;}
 .score-line.new-best{color:#2E9E4F;}
-.level-best-time{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:clamp(10px,2vw,12px);color:var(--ink);opacity:0.75;}
+.level-best-time{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:clamp(10px,2vw,12px);color:#fff;opacity:0.8;}
 .level-mini-stars{font-size:12px;letter-spacing:1px;color:#FFC531;line-height:1;}
 .btn-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
 .link-btn{background:none;border:none;color:#fff;text-decoration:underline;font-family:'Nunito',sans-serif;font-weight:700;font-size:13px;cursor:pointer;padding:4px;}
@@ -259,16 +301,27 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
           <span><span class="key">K</span>Kick</span>
         </div>
       </div>
-      <div class="level-select" id="level-select"></div>
-      <button class="play secondary" id="btn-daily-challenge" style="margin-top:4px;">&#127922; Daily Challenge</button>
-      <p class="level-names" id="daily-sub" style="opacity:0.75;"></p>
-      <div class="btn-row" style="margin-top:6px;">
-        <button class="hud-btn" id="btn-practice-toggle">&#129514; Practice: Off</button>
-        <button class="hud-btn" id="btn-hard-toggle">&#128170; Extra Tough: Off</button>
-        <button class="hud-btn" id="btn-sound-title" aria-label="Toggle sound">&#128266; Sound: On</button>
+      <div class="menu-card">
+        <p class="menu-card-title">Choose a level</p>
+        <div class="level-select" id="level-select"></div>
+        <p class="menu-divider">or</p>
+        <button class="btn-daily" id="btn-daily-challenge">&#127922; Daily Challenge</button>
+        <p class="level-names" id="daily-sub" style="opacity:0.75;margin:0;"></p>
       </div>
-      <p class="level-names" style="margin-top:10px;opacity:0.7;">Leo's kit</p>
-      <div class="costume-select" id="costume-select"></div>
+
+      <div class="menu-card">
+        <p class="menu-card-title">Leo's kit</p>
+        <div class="costume-select" id="costume-select"></div>
+      </div>
+
+      <div class="menu-card">
+        <p class="menu-card-title">Game options</p>
+        <div class="btn-row">
+          <button class="chip-toggle" id="btn-practice-toggle">&#129514; Practice: Off</button>
+          <button class="chip-toggle" id="btn-hard-toggle">&#128170; Extra Tough</button>
+          <button class="chip-toggle" id="btn-sound-title" aria-label="Toggle sound">&#128266; Sound: On</button>
+        </div>
+      </div>
     </div>
 
     <div class="screen" id="screen-gameover" hidden>
@@ -847,12 +900,15 @@ var hardMode = (function(){ try{ return localStorage.getItem('superleo_hard')===
 function updateModeToggleUI(){
   var pBtn = document.getElementById('btn-practice-toggle');
   var hBtn = document.getElementById('btn-hard-toggle');
-  if (pBtn) pBtn.textContent = '\u{1F9EA} Practice: ' + (practiceMode ? 'On' : 'Off');
+  if (pBtn){
+    pBtn.textContent = '\u{1F9EA} Practice: ' + (practiceMode ? 'On' : 'Off');
+    pBtn.classList.toggle('on', practiceMode);
+  }
   if (hBtn){
     var unlocked = progress.championed;
     hBtn.disabled = !unlocked;
-    hBtn.textContent = unlocked ? ('\u{1F4AA} Extra Tough: ' + (hardMode ? 'On' : 'Off')) : '\u{1F512} Extra Tough (beat the game first)';
-    hBtn.style.opacity = unlocked ? '1' : '0.6';
+    hBtn.textContent = unlocked ? ('\u{1F4AA} Extra Tough: ' + (hardMode ? 'On' : 'Off')) : '\u{1F512} Extra Tough';
+    hBtn.classList.toggle('on', unlocked && hardMode);
   }
 }
 document.getElementById('btn-practice-toggle').addEventListener('click', function(){
@@ -1280,7 +1336,10 @@ function updateSoundButtons(){
   var hudBtn = document.getElementById('btn-sound');
   if (hudBtn) hudBtn.textContent = icon;
   var titleBtn = document.getElementById('btn-sound-title');
-  if (titleBtn) titleBtn.textContent = icon + ' Sound: ' + (soundEnabled ? 'On' : 'Off');
+  if (titleBtn){
+    titleBtn.textContent = icon + ' Sound: ' + (soundEnabled ? 'On' : 'Off');
+    titleBtn.classList.toggle('on', soundEnabled);
+  }
 }
 function toggleSound(){
   soundEnabled = !soundEnabled;
