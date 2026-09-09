@@ -243,6 +243,7 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
         <div class="hud-pill" id="hard-badge" hidden>&#128170; Tough</div>
       </div>
       <div class="hud-group">
+        <button class="hud-btn" id="btn-sound" aria-label="Toggle sound">&#128266;</button>
         <button class="hud-btn" id="btn-pause" aria-label="Pause game">&#10074;&#10074;</button>
         <div class="hud-pill hearts" id="hearts" aria-label="Lives remaining"></div>
       </div>
@@ -259,9 +260,12 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
         </div>
       </div>
       <div class="level-select" id="level-select"></div>
+      <button class="play secondary" id="btn-daily-challenge" style="margin-top:4px;">&#127922; Daily Challenge</button>
+      <p class="level-names" id="daily-sub" style="opacity:0.75;"></p>
       <div class="btn-row" style="margin-top:6px;">
         <button class="hud-btn" id="btn-practice-toggle">&#129514; Practice: Off</button>
         <button class="hud-btn" id="btn-hard-toggle">&#128170; Extra Tough: Off</button>
+        <button class="hud-btn" id="btn-sound-title" aria-label="Toggle sound">&#128266; Sound: On</button>
       </div>
       <p class="level-names" style="margin-top:10px;opacity:0.7;">Leo's kit</p>
       <div class="costume-select" id="costume-select"></div>
@@ -289,6 +293,19 @@ button.play.secondary:active{box-shadow:0 2px 0 #1b4a75;}
       <div class="btn-row">
         <button class="play" id="btn-next-level">Next level</button>
         <button class="play secondary" id="btn-lc-levels">Level select</button>
+      </div>
+    </div>
+
+    <div class="screen" id="screen-daily-complete" hidden>
+      <p class="logo" style="font-size:clamp(26px,5.5vw,40px);">Daily Challenge complete!</p>
+      <div class="panel">
+        <p class="score-line">Score: <span id="daily-score">0</span></p>
+        <p class="score-line" style="margin:0;">Time: <span id="daily-time">0:00</span></p>
+      </div>
+      <p class="score-line" id="daily-best"></p>
+      <div class="btn-row">
+        <button class="play" id="btn-daily-again">Play again</button>
+        <button class="play secondary" id="btn-daily-menu">Back to menu</button>
       </div>
     </div>
 
@@ -370,11 +387,11 @@ function addBallsTo(list, cx, cy, n, spread){
 // ---------- Level definitions ----------
 var LEVELS = [
 {
-  name:'Sunny Hills', theme:'grass', worldWidth:3500,
+  name:'Sunny Hills', theme:'grass', worldWidth:3700,
   intro:"Leo's soccer ball rolled all the way to Sunny Hills — time to go get it!",
   playerStart:{x:60,y:GROUND_Y-46},
   ground:[
-    {x0:0,x1:640},{x0:760,x1:1420},{x0:1560,x1:1780},{x0:1920,x1:2620},{x0:2760,x1:3500}
+    {x0:0,x1:640},{x0:760,x1:1420},{x0:1560,x1:1780},{x0:1920,x1:2620},{x0:2760,x1:3700}
   ],
   platforms:[
     {x:820,y:340,w:110,h:26},{x:980,y:280,w:110,h:26},{x:1140,y:340,w:110,h:26},
@@ -411,11 +428,11 @@ var LEVELS = [
   goldenBall:{x:2390,y:185}
 },
 {
-  name:'Shadow Caves', theme:'cave', worldWidth:2700,
+  name:'Shadow Caves', theme:'cave', worldWidth:2900,
   intro:'Into the dark caves! Watch your step, Leo.',
   playerStart:{x:60,y:GROUND_Y-46},
   ground:[
-    {x0:0,x1:480},{x0:700,x1:1300},{x0:1450,x1:1900},{x0:1900,x1:2700}
+    {x0:0,x1:480},{x0:700,x1:1300},{x0:1450,x1:1900},{x0:1900,x1:2900}
   ],
   platforms:[
     {x:1550,y:340,w:110,h:24},{x:1700,y:270,w:110,h:24},{x:1830,y:150,w:140,h:24}
@@ -444,10 +461,10 @@ var LEVELS = [
   goldenBall:{x:1890,y:110}
 },
 {
-  name:'Sky Kickoff', theme:'sky', worldWidth:2600,
+  name:'Sky Kickoff', theme:'sky', worldWidth:2800,
   intro:'Up above the clouds — one wrong jump is a long way down!',
   playerStart:{x:60,y:GROUND_Y-46},
-  ground:[{x0:0,x1:220},{x0:2420,x1:2600}],
+  ground:[{x0:0,x1:220},{x0:2420,x1:2800}],
   platforms:[
     {x:380,y:360,w:110,h:24},{x:560,y:300,w:100,h:24},{x:720,y:360,w:100,h:24},
     {x:880,y:300,w:100,h:24},{x:1040,y:360,w:100,h:24},{x:1200,y:290,w:100,h:24},
@@ -480,11 +497,11 @@ var LEVELS = [
   goldenBall:{x:1280,y:15}
 },
 {
-  name:'Final Showdown', theme:'stadium', worldWidth:3300,
+  name:'Final Showdown', theme:'stadium', worldWidth:3500,
   intro:"The championship match! Captain Rex is waiting under the lights.",
   playerStart:{x:60,y:GROUND_Y-46},
   ground:[
-    {x0:0,x1:600},{x0:750,x1:1150},{x0:1330,x1:1700},{x0:1850,x1:2250},{x0:2420,x1:2820},{x0:2960,x1:3300}
+    {x0:0,x1:600},{x0:750,x1:1150},{x0:1330,x1:1700},{x0:1850,x1:2250},{x0:2420,x1:2820},{x0:2960,x1:3500}
   ],
   platforms:[
     {x:640,y:330,w:90,h:24},{x:900,y:260,w:100,h:24},{x:1180,y:340,w:110,h:24},
@@ -518,6 +535,162 @@ var LEVELS = [
   goldenBall:{x:2040,y:190}
 }
 ];
+
+// ---------- Daily Challenge (procedurally generated) ----------
+// A seeded RNG so everyone gets the same layout on the same calendar day —
+// deterministic, so "retry" reproduces today's exact challenge again.
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function dailySeedNumber(){
+  var d = new Date();
+  return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();
+}
+function dailyDateKey(){
+  var d = new Date();
+  return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+}
+function dailyDateLabel(){
+  var d = new Date();
+  return d.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+}
+
+// Builds a full level def in the same shape as the hand-built LEVELS
+// entries above, so it flows through loadLevel() unchanged. Ground gaps
+// are capped at 130px (the largest gap used in the hand-built levels) so
+// every gap is jumpable, and floating pickups are always anchored to a
+// generated platform or ground segment so nothing is ever unreachable —
+// randomized, but never unfair.
+function generateDailyLevel(seed){
+  var rng = mulberry32(seed);
+  function ri(min,max){ return Math.floor(rng()*(max-min+1))+min; }
+  function pick(arr){ return arr[Math.floor(rng()*arr.length)]; }
+
+  var GY = GROUND_Y_REF;
+  var theme = pick(['grass','cave','sky','stadium']);
+  var segCount = ri(6,8);
+
+  var ground=[], platforms=[], spikes=[], crates=[];
+  var collectibleGroups=[], enemies=[], powerups=[];
+  var anchors = []; // safe, reachable {x,y} spots for pickups
+  var x = 0;
+
+  for (var i=0; i<segCount; i++){
+    var segLen = ri(240, 420);
+    var x0 = x, x1 = x + segLen;
+    ground.push({x0:x0, x1:x1});
+    var isFirst = i===0, isLast = i===segCount-1;
+
+    anchors.push({x: x0+segLen*0.5, y: GY-80});
+
+    if (!isFirst && !isLast && segLen > 180 && rng() < 0.4){
+      spikes.push({x: x0 + ri(70, segLen-110), y: GY-14, w:40, h:14});
+    }
+    if (!isFirst && segLen > 160 && rng() < 0.3){
+      crates.push({x: x0 + ri(60, segLen-100), y: GY-40, w:40, h:40});
+    }
+    if (!isFirst && !isLast && rng() < 0.55){
+      enemies.push({
+        type:'grump', x: x0 + segLen*0.5, y:GY-46, w:30, h:46,
+        minX: x0+25, maxX: x1-25, vx: 0.9+rng()*0.7
+      });
+    }
+    if (rng() < 0.6){
+      collectibleGroups.push({cx: x0+segLen*0.5, cy: GY-70-ri(0,30), n: ri(2,4), spread:36});
+    }
+    if (!isFirst && !isLast && rng() < 0.4){
+      var py = GY - ri(90,190);
+      var pw = 100;
+      var px = x0 + segLen*0.4;
+      platforms.push({x:px, y:py, w:pw, h:24});
+      anchors.push({x:px+pw*0.4, y:py-40});
+      if (rng() < 0.5) collectibleGroups.push({cx:px+pw*0.4, cy:py-36, n:ri(2,3), spread:30});
+    }
+
+    x = x1;
+    if (i < segCount-1) x += pick([70,90,110,130]);
+  }
+
+  // The goal sits a fixed distance past the last segment; worldWidth then
+  // extends well beyond THAT, so the camera's max scroll always leaves a
+  // healthy margin to the right of the net (phones in landscape can have a
+  // camera cutout eating into that edge of the screen).
+  var goalX = x + 180;
+  var worldWidth = goalX + 220;
+  ground.push({x0:x, x1:worldWidth});
+  anchors.push({x: x-130, y: GY-80});
+
+  var powerupTypes = ['speed','shield','rapid'];
+  for (var p=0; p<2; p++){
+    var pa = pick(anchors);
+    powerups.push({x:pa.x, y:pa.y, type: pick(powerupTypes)});
+  }
+  var ga = pick(anchors);
+  var goldenBall = { x: ga.x+20, y: ga.y-10 };
+
+  enemies.push({ type:'bouncer', x: goalX-50, y:GY-46, w:30, h:46, minY:GY-150, maxY:GY-46, vy:1.3, isGoalie:true });
+
+  return {
+    name: 'Daily Challenge',
+    theme: theme,
+    worldWidth: worldWidth,
+    playerStart: {x:60, y:GY-46},
+    ground: ground,
+    platforms: platforms,
+    movingPlatforms: [],
+    springPads: [],
+    spikes: spikes,
+    crates: crates,
+    collectibleGroups: collectibleGroups,
+    enemies: enemies,
+    powerups: powerups,
+    goal: { x: goalX, y: GY-150, w:16, h:150 },
+    goldenBall: goldenBall,
+    intro: "Today's Daily Challenge — good luck, Leo!"
+  };
+}
+
+function loadDailyBest(){
+  try{
+    var raw = JSON.parse(localStorage.getItem('superleo_dailybest'));
+    return (raw && typeof raw === 'object') ? raw : {};
+  }catch(e){ return {}; }
+}
+function saveDailyBest(){
+  try{ localStorage.setItem('superleo_dailybest', JSON.stringify(dailyBest)); }catch(e){}
+}
+var dailyBest = loadDailyBest(); // { [dateKey]: { score, timeMs } }
+
+function startDailyChallenge(){
+  SFX.click();
+  startLevel(generateDailyLevel(dailySeedNumber()));
+}
+
+function triggerDailyComplete(){
+  if (gameState !== 'playing') return;
+  gameState = 'levelcomplete';
+  player.celebrating = true; player.vx = 0;
+  SFX.levelComplete();
+  vibrate([50,50,50]);
+  triggerConfetti(30);
+  var dateKey = dailyDateKey();
+  var prev = dailyBest[dateKey];
+  var isNewBest = !prev || score > prev.score;
+  if (isNewBest){ dailyBest[dateKey] = { score: score, timeMs: levelTimer }; saveDailyBest(); }
+  document.getElementById('daily-score').textContent = score;
+  document.getElementById('daily-time').textContent = formatTime(levelTimer);
+  var bestLine = document.getElementById('daily-best');
+  bestLine.textContent = isNewBest ? "New best for today!" : ('Best today: ' + dailyBest[dateKey].score + ' pts');
+  bestLine.classList.toggle('new-best', isNewBest);
+  hideAllScreens();
+  document.getElementById('screen-daily-complete').hidden = false;
+  document.getElementById('hud').hidden = true;
+}
 
 // ---------- Fit canvas to the actual device shape (no stretch, no letterbox bars) ----------
 // LEVELS above was authored assuming a 960x540 canvas with the ground at y=440.
@@ -570,6 +743,7 @@ function resyncCanvasSize(){
   // page finished settling on its final size (some browsers/containers,
   // and iOS after a rotation, can take a beat to reach their final layout).
   if (typeof currentLevelIndex === 'number') loadLevel(currentLevelIndex);
+  else if (currentLevelIndex === 'daily' && dailyLevelDef) loadLevel(dailyLevelDef);
 }
 // Retry a few times after every resize/rotation/foreground event, not just
 // once at initial load — iOS in particular can fire the resize/
@@ -724,6 +898,7 @@ function formatTime(ms){
 
 // ---------- Working level state ----------
 var currentLevelIndex = 0;
+var dailyLevelDef = null; // the generated def for the currently-loaded Daily Challenge, if any
 var theme = 'grass';
 var WORLD_WIDTH = 3500;
 var ground = [], platforms = [], movingPlatforms = [], springPads = [], spikes = [], crates = [];
@@ -851,8 +1026,9 @@ function triggerConfetti(n){
 }
 
 function loadLevel(idx){
-  var def = LEVELS[idx];
-  currentLevelIndex = idx;
+  var def = (typeof idx === 'number') ? LEVELS[idx] : idx;
+  currentLevelIndex = (typeof idx === 'number') ? idx : 'daily';
+  if (currentLevelIndex === 'daily') dailyLevelDef = def;
   theme = def.theme;
   WORLD_WIDTH = def.worldWidth;
   ground = clone(def.ground);
@@ -924,7 +1100,7 @@ function loadLevel(idx){
   document.getElementById('practice-badge').hidden = !practiceMode;
   document.getElementById('hard-badge').hidden = !effectiveHard;
   updateHearts(); updateScore(); updateTimerDisplay();
-  document.getElementById('level-label').textContent = 'Level ' + (idx+1);
+  document.getElementById('level-label').textContent = (typeof idx === 'number') ? ('Level ' + (idx+1)) : 'Daily Challenge';
 }
 
 function updateTimerDisplay(){
@@ -1028,7 +1204,9 @@ function ensureAudio(){
   }
   if (actx && actx.state === 'suspended'){ try{ actx.resume(); }catch(e){} }
 }
+var soundEnabled = (function(){ try{ return localStorage.getItem('superleo_sound') !== '0'; }catch(e){ return true; } })();
 function playTone(freq, duration, type, vol, delay, freqEnd){
+  if (!soundEnabled) return;
   ensureAudio();
   if (!actx) return;
   try{
@@ -1044,22 +1222,75 @@ function playTone(freq, duration, type, vol, delay, freqEnd){
     osc.start(t0); osc.stop(t0+duration+0.03);
   }catch(e){}
 }
+// A short buffer of white noise, reused (and filtered differently) for
+// every percussive sound — kicks, stomps, hits, crate breaks — so they
+// have an actual transient "crack"/"thud" texture instead of being pure
+// oscillator beeps.
+var noiseBuffer = null;
+function getNoiseBuffer(){
+  if (!actx) return null;
+  if (noiseBuffer && noiseBuffer.sampleRate === actx.sampleRate) return noiseBuffer;
+  var len = Math.floor(actx.sampleRate*0.4);
+  var buf = actx.createBuffer(1, len, actx.sampleRate);
+  var data = buf.getChannelData(0);
+  for (var i=0;i<len;i++) data[i] = Math.random()*2-1;
+  noiseBuffer = buf;
+  return buf;
+}
+function playNoise(duration, vol, filterFreq, filterType, delay, filterEnd){
+  if (!soundEnabled) return;
+  ensureAudio();
+  if (!actx) return;
+  try{
+    var t0 = actx.currentTime + (delay||0);
+    var buf = getNoiseBuffer();
+    if (!buf) return;
+    var src = actx.createBufferSource();
+    src.buffer = buf;
+    var filt = actx.createBiquadFilter();
+    filt.type = filterType || 'lowpass';
+    filt.frequency.setValueAtTime(filterFreq||1200, t0);
+    if (filterEnd) filt.frequency.exponentialRampToValueAtTime(Math.max(filterEnd,10), t0+duration);
+    var gain = actx.createGain();
+    gain.gain.setValueAtTime(vol||0.2, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0+duration);
+    src.connect(filt); filt.connect(gain); gain.connect(actx.destination);
+    src.start(t0); src.stop(t0+duration+0.02);
+  }catch(e){}
+}
 var SFX = {
-  jump: function(){ playTone(420,0.14,'square',0.16,0,760); },
-  kick: function(){ playTone(160,0.09,'sawtooth',0.2,0,50); playTone(1100,0.03,'square',0.08,0.02); },
-  enemyKick: function(){ playTone(110,0.1,'sawtooth',0.18,0,40); playTone(700,0.04,'square',0.07,0.02); },
-  stomp: function(){ playTone(200,0.11,'square',0.22,0,70); },
-  pop: function(){ playTone(500,0.09,'square',0.18,0,900); },
-  coin: function(){ playTone(880,0.08,'square',0.16,0); playTone(1320,0.1,'square',0.14,0.06); },
-  crate: function(){ playTone(220,0.06,'square',0.15,0,90); playTone(160,0.06,'square',0.12,0.05,60); },
-  hurt: function(){ playTone(320,0.25,'sawtooth',0.2,0,130); },
+  jump: function(){ playTone(420,0.14,'square',0.16,0,760); playNoise(0.05,0.07,2200,'highpass',0); },
+  kick: function(){ playNoise(0.07,0.24,1700,'bandpass',0,900); playTone(140,0.09,'triangle',0.18,0,55); },
+  enemyKick: function(){ playNoise(0.06,0.18,1100,'bandpass',0,600); playTone(100,0.08,'triangle',0.14,0,40); },
+  stomp: function(){ playNoise(0.09,0.26,700,'lowpass',0,150); playTone(90,0.14,'sine',0.22,0,45); },
+  pop: function(){ playTone(500,0.08,'square',0.16,0,900); playNoise(0.03,0.08,3200,'highpass',0); },
+  coin: function(){ playTone(880,0.08,'triangle',0.18,0); playTone(1320,0.12,'triangle',0.16,0.06); },
+  crate: function(){ playNoise(0.11,0.24,2400,'lowpass',0,250); playTone(140,0.08,'square',0.14,0,75); },
+  hurt: function(){ playTone(320,0.22,'sawtooth',0.18,0,130); playNoise(0.06,0.16,900,'lowpass',0,200); },
   spring: function(){ playTone(220,0.26,'sine',0.22,0,940); },
-  levelComplete: function(){ playTone(523,0.12,'square',0.18,0); playTone(659,0.12,'square',0.18,0.12); playTone(784,0.2,'square',0.18,0.24); },
-  champion: function(){ playTone(523,0.12,'square',0.18,0); playTone(659,0.12,'square',0.18,0.12); playTone(784,0.14,'square',0.18,0.24); playTone(1046,0.28,'square',0.2,0.38); },
+  levelComplete: function(){ playTone(523,0.12,'triangle',0.2,0); playTone(659,0.12,'triangle',0.2,0.12); playTone(784,0.2,'triangle',0.2,0.24); },
+  champion: function(){ playTone(523,0.12,'triangle',0.2,0); playTone(659,0.12,'triangle',0.2,0.12); playTone(784,0.14,'triangle',0.2,0.24); playTone(1046,0.28,'triangle',0.22,0.38); },
   click: function(){ playTone(700,0.05,'square',0.1,0); },
-  powerup: function(){ playTone(500,0.1,'square',0.18,0,1000); playTone(700,0.1,'square',0.16,0.1,1400); playTone(1000,0.14,'square',0.16,0.2); },
-  combo: function(tier){ var f = 660 + Math.min(tier,8)*70; playTone(f,0.08,'square',0.15,0); playTone(f*1.5,0.08,'square',0.12,0.05); }
+  powerup: function(){ playTone(500,0.1,'square',0.18,0,1000); playTone(700,0.1,'square',0.16,0.1,1400); playTone(1000,0.14,'square',0.16,0.2); playNoise(0.08,0.06,4000,'highpass',0.18); },
+  combo: function(tier){ var f = 660 + Math.min(tier,8)*70; playTone(f,0.08,'triangle',0.16,0); playTone(f*1.5,0.08,'triangle',0.13,0.05); }
 };
+
+function updateSoundButtons(){
+  var icon = soundEnabled ? '\u{1F50A}' : '\u{1F507}';
+  var hudBtn = document.getElementById('btn-sound');
+  if (hudBtn) hudBtn.textContent = icon;
+  var titleBtn = document.getElementById('btn-sound-title');
+  if (titleBtn) titleBtn.textContent = icon + ' Sound: ' + (soundEnabled ? 'On' : 'Off');
+}
+function toggleSound(){
+  soundEnabled = !soundEnabled;
+  try{ localStorage.setItem('superleo_sound', soundEnabled?'1':'0'); }catch(e){}
+  updateSoundButtons();
+  if (soundEnabled) SFX.click();
+}
+updateSoundButtons();
+document.getElementById('btn-sound').addEventListener('click', toggleSound);
+document.getElementById('btn-sound-title').addEventListener('click', toggleSound);
 
 // ---------- Input ----------
 var KEY_MAP = {
@@ -1471,6 +1702,8 @@ function updateEnemies(dt, step){
       if (bossAlive()){
         spawnParticles(b.x+7, b.y+7, '#FFC531', 6, 3);
         SFX.pop();
+      } else if (currentLevelIndex === 'daily'){
+        triggerDailyComplete();
       } else {
         triggerLevelComplete();
       }
@@ -1591,6 +1824,7 @@ function drawCloud(x,y){
   ctx.restore();
 }
 
+// A dim, distant stand of bleachers with fan-colored dots, plus a couple of
 function drawGrassBackground(){
   var g = ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,'#3EA0E8'); g.addColorStop(0.55,'#7FD0F5'); g.addColorStop(1,'#E4F7FF');
@@ -2176,17 +2410,54 @@ function drawOffscreenWarnings(){
 
 function drawGoal(){
   var x = goal.x - camX;
+  var frontTopY = goal.y, frontBotY = goal.y + goal.h;
+  var depth = goal.h * 0.6;
+  var backX = x + goal.w + depth;
+
+  // Ground shadow spanning the whole net footprint, plus a short goal-line
+  // stripe painted on the pitch — small touches that ground the net as a
+  // real 3D object instead of a shape floating on a flat rectangle.
   ctx.fillStyle = 'rgba(20,20,10,0.2)';
-  ctx.beginPath(); ctx.ellipse(x+goal.w/2, goal.y+goal.h+2, 40, 7, 0, 0, Math.PI*2); ctx.fill();
-  var pg = ctx.createLinearGradient(x,0,x+6,0);
-  pg.addColorStop(0,'#fff'); pg.addColorStop(1,'#d8dde2');
-  ctx.fillStyle = pg;
-  ctx.fillRect(x, goal.y, 5, goal.h);
-  ctx.fillRect(x+goal.w-5, goal.y, 5, goal.h);
-  ctx.fillRect(x, goal.y, goal.w, 5);
-  ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth=1;
-  for (var i=6;i<goal.w;i+=6) { ctx.beginPath(); ctx.moveTo(x+i,goal.y); ctx.lineTo(x+i-16,goal.y+goal.h); ctx.stroke(); }
-  for (var j=6;j<goal.h;j+=8) { ctx.beginPath(); ctx.moveTo(x,goal.y+j); ctx.lineTo(x+goal.w,goal.y+j); ctx.stroke(); }
+  ctx.beginPath(); ctx.ellipse((x+backX)/2, frontBotY+3, (backX-x)/2+14, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x-6, frontBotY+1); ctx.lineTo(x+6, frontBotY+1); ctx.stroke();
+
+  // Netting: a right-triangle side profile, just like a real goal — the
+  // vertical front post, the net's bottom lying flat along the ground,
+  // and the top sloping back down to meet the ground behind it.
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x, frontTopY); ctx.lineTo(backX, frontBotY); ctx.lineTo(x, frontBotY);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.fill();
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1;
+  var bx0 = x-10, bx1 = backX+10, by0 = frontTopY-10, by1 = frontBotY+10;
+  var diag = by1-by0;
+  for (var i=bx0; i<bx1+diag; i+=8){
+    ctx.beginPath(); ctx.moveTo(i, by0); ctx.lineTo(i-diag, by1); ctx.stroke();
+  }
+  for (var j=bx0-diag; j<bx1; j+=8){
+    ctx.beginPath(); ctx.moveTo(j, by0); ctx.lineTo(j+diag, by1); ctx.stroke();
+  }
+  ctx.restore();
+
+  // The sloped top edge of the net (post-top down to the back-ground
+  // point) and the flat bottom edge along the ground.
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x+goal.w, frontTopY); ctx.lineTo(backX, frontBotY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x+goal.w, frontBotY); ctx.lineTo(backX, frontBotY); ctx.stroke();
+
+  // Front post + crossbar: solid piping with a cylindrical highlight,
+  // instead of a flat-filled bar.
+  var postGrad = ctx.createLinearGradient(x-4,0,x+4,0);
+  postGrad.addColorStop(0,'#aeb4ba'); postGrad.addColorStop(0.5,'#ffffff'); postGrad.addColorStop(1,'#aeb4ba');
+  ctx.fillStyle = postGrad;
+  ctx.fillRect(x-4, frontTopY-4, 8, goal.h+4);
+  ctx.fillRect(x-4, frontTopY-6, goal.w+8, 8);
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(x-4, frontBotY, 8, 4);
 
   if (gameState==='playing' && x > -200 && x < W+200){
     var signY = goal.y - 26;
@@ -2989,7 +3260,7 @@ function render(){
 
 // ---------- Game state flow ----------
 function hideAllScreens(){
-  ['screen-title','screen-gameover','screen-levelcomplete','screen-champion','screen-paused'].forEach(function(id){
+  ['screen-title','screen-gameover','screen-levelcomplete','screen-daily-complete','screen-champion','screen-paused'].forEach(function(id){
     document.getElementById(id).hidden = true;
   });
 }
@@ -3001,6 +3272,14 @@ function showTitle(){
   renderLevelSelect();
   renderCostumeSelect();
   updateModeToggleUI();
+  updateDailySub();
+  updateSoundButtons();
+}
+function updateDailySub(){
+  var sub = document.getElementById('daily-sub');
+  if (!sub) return;
+  var best = dailyBest[dailyDateKey()];
+  sub.textContent = dailyDateLabel() + (best ? (' — best: ' + best.score + ' pts') : ' — not played yet');
 }
 
 // The title/menu screens work fine narrow, but actual gameplay needs
@@ -3046,6 +3325,9 @@ function beginLevel(idx){
   gameState = 'playing';
   hideAllScreens();
   document.getElementById('hud').hidden = false;
+}
+function currentLevelTarget(){
+  return currentLevelIndex === 'daily' ? dailyLevelDef : currentLevelIndex;
 }
 function startLevel(idx){
   if (isPortraitNow()){
@@ -3140,7 +3422,7 @@ function togglePause(){
   }
 }
 
-document.getElementById('btn-retry').addEventListener('click', function(){ SFX.click(); startLevel(currentLevelIndex); });
+document.getElementById('btn-retry').addEventListener('click', function(){ SFX.click(); startLevel(currentLevelTarget()); });
 document.getElementById('btn-lose-levels').addEventListener('click', function(){ SFX.click(); showTitle(); });
 document.getElementById('btn-next-level').addEventListener('click', function(){
   SFX.click(); confetti.length = 0;
@@ -3148,12 +3430,15 @@ document.getElementById('btn-next-level').addEventListener('click', function(){
   else startLevel(currentLevelIndex+1);
 });
 document.getElementById('btn-lc-levels').addEventListener('click', function(){ SFX.click(); confetti.length=0; showTitle(); });
+document.getElementById('btn-daily-challenge').addEventListener('click', startDailyChallenge);
+document.getElementById('btn-daily-again').addEventListener('click', function(){ confetti.length=0; startDailyChallenge(); });
+document.getElementById('btn-daily-menu').addEventListener('click', function(){ SFX.click(); confetti.length=0; showTitle(); });
 document.getElementById('btn-champion-again').addEventListener('click', function(){
   SFX.click(); confetti.length = 0; runTotalScore = 0; runTotalStars = 0; showTitle();
 });
 document.getElementById('btn-pause').addEventListener('click', togglePause);
 document.getElementById('btn-resume').addEventListener('click', togglePause);
-document.getElementById('btn-restart-level').addEventListener('click', function(){ SFX.click(); startLevel(currentLevelIndex); });
+document.getElementById('btn-restart-level').addEventListener('click', function(){ SFX.click(); startLevel(currentLevelTarget()); });
 document.getElementById('btn-pause-levels').addEventListener('click', function(){ SFX.click(); showTitle(); });
 
 // ---------- Main loop ----------
