@@ -453,7 +453,7 @@ var LEVELS = [
     {x:3200,y:250,w:100,h:26},{x:110,y:150,w:120,h:24}
   ],
   movingPlatforms:[{x:1350,y:180,w:100,h:24,axis:'x',range:90,speed:0.7}],
-  springPads:[{x:130,y:GROUND_Y-20,w:40,h:20}],
+  springPads:[{x:95,y:GROUND_Y-20,w:40,h:20}],
   spikes:[],
   crates:[{x:1250,y:GROUND_Y-40,w:40,h:40}, {x:2820,y:GROUND_Y-40,w:40,h:40}],
   collectibleGroups:[
@@ -523,8 +523,11 @@ var LEVELS = [
     {x:880,y:300,w:100,h:24},{x:1040,y:360,w:100,h:24},{x:1200,y:290,w:100,h:24},
     {x:1360,y:230,w:100,h:24},{x:1520,y:290,w:100,h:24},{x:1680,y:360,w:100,h:24},
     {x:1840,y:300,w:100,h:24},{x:2000,y:360,w:100,h:24},{x:2160,y:300,w:140,h:24},
-    {x:2320,y:360,w:110,h:24},{x:1230,y:60,w:120,h:24},{x:1680,y:150,w:120,h:24}
+    {x:2320,y:360,w:110,h:24},{x:1680,y:150,w:120,h:24}
   ],
+  // Only the moving platform lives in this column now — a static platform used to
+  // sit right above it, and riding the mover up into its underside would squish
+  // the player between the two. Removed so the mover has clear headroom.
   movingPlatforms:[{x:1250,y:150,w:90,h:24,axis:'y',range:60,speed:0.7}],
   springPads:[{x:1710,y:340,w:40,h:20}],
   spikes:[],
@@ -562,7 +565,7 @@ var LEVELS = [
     {x:2860,y:330,w:100,h:24},{x:110,y:150,w:120,h:24}
   ],
   movingPlatforms:[{x:2550,y:250,w:100,h:24,axis:'y',range:70,speed:0.8}],
-  springPads:[{x:130,y:GROUND_Y-20,w:40,h:20}],
+  springPads:[{x:95,y:GROUND_Y-20,w:40,h:20}],
   spikes:[{x:1000,y:GROUND_Y-14,w:40,h:14},{x:2050,y:GROUND_Y-14,w:40,h:14}],
   crates:[{x:1500,y:GROUND_Y-40,w:40,h:40},{x:2600,y:GROUND_Y-40,w:40,h:40}],
   collectibleGroups:[
@@ -1638,9 +1641,20 @@ function updatePlayer(dt, step){
     player.hurtTimer = HURT_INVULN;
   }
 
-  if (player.grounded && player.x > respawn.x + 20){
+  if (player.grounded && player.x > respawn.x + 20 && hasSafeGroundAhead(player.x, 30)){
     respawn.x = player.x; respawn.y = player.y - 2;
   }
+}
+
+// Don't bank a respawn checkpoint right at the lip of a pit — only update it
+// when there's still a little solid ground ahead, so dying at a ledge
+// doesn't just respawn Leo one step from falling in again.
+function hasSafeGroundAhead(x, margin){
+  for (var gi=0; gi<ground.length; gi++){
+    var g = ground[gi];
+    if (x >= g.x0 && x <= g.x1) return (g.x1 - x) >= margin;
+  }
+  return true;
 }
 
 function updateEnemies(dt, step){
