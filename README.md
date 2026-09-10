@@ -1,6 +1,6 @@
 # Super Leo
 
-A Mario-style platformer built for Leo — run, jump, and kick soccer balls across four worlds (Sunny Hills, Shadow Caves, Sky Kickoff, and the Final Showdown boss level) to reach each goal net.
+A Mario-style platformer built for Leo — run, jump, and kick soccer balls across five worlds (Sunny Hills, Shadow Caves, Sky Kickoff, the Final Showdown boss level, and the Overtime rematch) to reach each goal net.
 
 Play it at: https://bpandres.github.io/super-leo/
 
