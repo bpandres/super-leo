@@ -591,7 +591,7 @@ var LEVELS = [
   goldenBall:{x:2040,y:190}
 },
 {
-  name:'Overtime', theme:'stadium', worldWidth:4000,
+  name:'Overtime', theme:'overtime', worldWidth:4000,
   intro:"Overtime! Captain Rex demanded a rematch — bring your best game, Leo!",
   playerStart:{x:60,y:GROUND_Y-46},
   ground:[
@@ -1530,24 +1530,32 @@ if (window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)'
 // Ground/platforms/springPads are precomputed once per level load in
 // staticSolids (see rebuildStaticSolids); only movingPlatforms (which move)
 // and crates (which can break) need to be appended fresh each call.
+function aliveCrates(){
+  return crates.filter(function(c){ return c.alive; });
+}
 function allSolids(){
-  var list = staticSolids.concat(movingPlatforms);
-  crates.forEach(function(c){ if(c.alive) list.push(c); });
-  return list;
+  return staticSolids.concat(movingPlatforms, aliveCrates());
 }
 
 function moveAndCollide(entity, dx, dy){
-  var solids = allSolids();
+  // Moving platforms only act as a floor to land on (or a ceiling to bump
+  // into) — treating their sides as solid too made jumping toward one feel
+  // like getting shoved back, since wherever the platform happened to be
+  // mid-swing could block the approach instead of just carrying the
+  // landing. So the horizontal pass only checks static terrain and crates;
+  // movingPlatforms are only ever resolved in the vertical pass below.
+  var hSolids = staticSolids.concat(aliveCrates());
   entity.x += dx;
   var box = {x:entity.x,y:entity.y,w:entity.w,h:entity.h};
-  for (var i=0;i<solids.length;i++){
-    var s = solids[i];
+  for (var i=0;i<hSolids.length;i++){
+    var s = hSolids[i];
     if (rectsOverlap(box, s)){
       if (dx > 0) entity.x = s.x - entity.w;
       else if (dx < 0) entity.x = s.x + s.w;
       box.x = entity.x;
     }
   }
+  var solids = allSolids();
   entity.y += dy;
   entity.grounded = false;
   box = {x:entity.x,y:entity.y,w:entity.w,h:entity.h};
@@ -2223,10 +2231,91 @@ function drawStadiumBackground(){
   ctx.stroke();
 }
 
+// Overtime's rematch look reuses the stadium's floodlights/stands structure
+// but swaps the night-blue sky for a fiery sunset and adds fireworks —
+// keeps it recognizably "the big match" without looking identical to
+// Final Showdown's background.
+function drawOvertimeBackground(){
+  var g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#2B1B4A'); g.addColorStop(0.4,'#7A2E52'); g.addColorStop(0.75,'#C9522E'); g.addColorStop(1,'#F2A33C');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  // Fireworks: a few slow-drifting radiant bursts high in the sky.
+  var fireworkColors = ['#FFC531','#FF5D73','#9BE85E','#5EC4F2','#fff'];
+  for (var fw=0; fw<4; fw++){
+    var fseed = fw*137;
+    var fx = ((fw*260 + 90 - camX*0.2) % (W+300)) - 150;
+    var fy = 50 + (fseed%3)*26;
+    var pulse = 0.6 + 0.4*Math.sin(elapsed*0.0018 + fw*1.7);
+    ctx.strokeStyle = fireworkColors[fw%fireworkColors.length];
+    ctx.globalAlpha = 0.35*pulse;
+    ctx.lineWidth = 1.4;
+    for (var r=0; r<8; r++){
+      var ang = (r/8)*Math.PI*2;
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(fx+Math.cos(ang)*14*pulse, fy+Math.sin(ang)*14*pulse);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Floodlight towers with soft warm light cones, spaced along the pitch.
+  for (var f=0; f<5; f++){
+    var fx2 = ((f*420 + 120 - camX*0.3) % (W+360)) - 180;
+    var topY = 30 + (f%2)*10;
+    ctx.fillStyle = 'rgba(30,16,26,0.7)';
+    ctx.fillRect(fx2-3, topY, 6, GROUND_Y-topY-40);
+    ctx.fillRect(fx2-16, topY-8, 32, 8);
+    var lg = ctx.createRadialGradient(fx2,topY-4,4,fx2,topY-4,150);
+    lg.addColorStop(0,'rgba(255,232,190,0.55)'); lg.addColorStop(0.5,'rgba(255,232,190,0.16)'); lg.addColorStop(1,'rgba(255,232,190,0)');
+    ctx.fillStyle = lg;
+    ctx.beginPath(); ctx.arc(fx2, topY-4, 150, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#FFF1D0';
+    for (var b=0;b<6;b++){
+      var bxp = fx2-12 + (b%3)*12, byp = topY-8-Math.floor(b/3)*6;
+      ctx.beginPath(); ctx.arc(bxp,byp,2,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  for (var d=0;d<6;d++){
+    var dx = ((d*300 - camX*0.15) % (W+260)) - 130;
+    drawCloud(dx, 60+(d%3)*30);
+  }
+
+  // Crowded stands: a tiered silhouette speckled with tiny fan-colored dots.
+  var fanColors = ['#FFC531','#FF5D73','#9BE85E','#5EC4F2','#fff','#FF8AD8'];
+  for (var t=0;t<3;t++){
+    var tierY = GROUND_Y - 70 - t*44;
+    var tierH = 46;
+    ctx.fillStyle = 'rgba(28,12,22,0.82)';
+    ctx.beginPath(); ctx.rect(0, tierY, W, tierH); ctx.fill();
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, tierY, W, tierH); ctx.clip();
+    for (var s=0;s<26;s++){
+      var seed = t*97+s;
+      var sx = ((s*33 + t*17 - camX*(0.4+t*0.1)) % (W+40)) - 10;
+      var sy = tierY + 8 + ((seed*53)%(tierH-14));
+      ctx.fillStyle = fanColors[seed%fanColors.length];
+      ctx.beginPath(); ctx.arc(sx, sy, 2.6, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Pennant bunting strung along the very top of the stands.
+  ctx.strokeStyle = 'rgba(255,241,208,0.35)'; ctx.lineWidth=1.5;
+  var buntY = GROUND_Y - 70 - 3*44;
+  ctx.beginPath();
+  for (var p=0; p<W; p+=40){ ctx.moveTo(p, buntY); ctx.quadraticCurveTo(p+20, buntY+10, p+40, buntY); }
+  ctx.stroke();
+}
+
 function drawBackground(){
   if (theme === 'cave') drawCaveBackground();
   else if (theme === 'sky') drawSkyBackground();
   else if (theme === 'stadium') drawStadiumBackground();
+  else if (theme === 'overtime') drawOvertimeBackground();
   else drawGrassBackground();
 }
 
