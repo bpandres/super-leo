@@ -837,6 +837,10 @@ function saveProgress(){
   }catch(e){}
 }
 var progress = loadProgress();
+// Set true the instant the last level is beaten (see triggerLevelComplete),
+// so the champion screen can tell "just now" apart from "already championed"
+// even though progress.championed itself gets flipped early.
+var justChampioned = false;
 
 // ---------- Costumes ----------
 // Leo's unlockable kits: cosmetic only, unlocked by clearing levels (and one
@@ -1770,7 +1774,10 @@ function updateEnemies(dt, step){
         b.life = 0;
       }
     });
-    if (b.life > 0 && rectsOverlap(bb, goal)){
+    // Only counts as a goal when the ball is heading into the net from the
+    // front (moving rightward) — sneaking behind the net and knocking the
+    // ball in from the back shouldn't score.
+    if (b.life > 0 && b.vx > 0 && rectsOverlap(bb, goal)){
       b.life = 0;
       if (bossAlive()){
         spawnParticles(b.x+7, b.y+7, '#FFC531', 6, 3);
@@ -3438,6 +3445,15 @@ function triggerLevelComplete(){
   var prevUnlocked = progress.unlocked;
   progress.unlocked = Math.max(progress.unlocked, Math.min(currentLevelIndex+2, LEVELS.length));
   progress.best = Math.max(progress.best, runTotalScore);
+  // Mark the game "championed" as soon as the last level is actually beaten,
+  // not only after clicking through to the champion screen — that button
+  // click was an easy step to miss (closing the app, going back to the menu
+  // instead), which left Extra Tough / the black kit locked even though the
+  // game had been finished.
+  if (currentLevelIndex >= LEVELS.length-1 && !progress.championed){
+    progress.championed = true;
+    justChampioned = true;
+  }
   saveProgress();
 
   var newCostume = COSTUMES.filter(function(c){
@@ -3472,7 +3488,8 @@ function triggerChampion(){
   SFX.champion();
   vibrate([100,50,100,50,200]);
   triggerConfetti(70);
-  var newlyChampioned = !progress.championed;
+  var newlyChampioned = justChampioned || !progress.championed;
+  justChampioned = false;
   progress.championed = true;
   saveProgress();
   document.getElementById('champion-score').textContent = runTotalScore;
